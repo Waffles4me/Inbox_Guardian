@@ -4,7 +4,7 @@ InboxGuardian is a 48-hour Upwind Security home-assignment project: a Gmail Add-
 
 The assignment requires a Google Workspace Gmail Add-on, a backend service the add-on can call, a clear maliciousness score/verdict/reasoning shown to the user, a public source repository, and a live demonstration against a real Gmail account. The full assignment brief is intentionally not published in this repository.
 
-Current status: initial local setup only. A basic Apps Script project exists and was manually verified by the project owner, but it is not yet configured as a Gmail Add-on. There is no deployed backend, Gmail-to-backend integration, or threat detection engine yet.
+Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. The backend still returns `DEMO / NOT ANALYZED`; there is no real threat detection engine yet.
 
 ## Scope
 
@@ -18,7 +18,7 @@ Current status: initial local setup only. A basic Apps Script project exists and
 
 ```text
 .
-├── addon/                  # Future Apps Script source/manifest notes
+├── addon/                  # Apps Script Gmail Add-on source and manifest
 ├── backend/app/            # FastAPI app and request/response models
 ├── docs/                   # Setup, security, and assignment notes
 ├── tests/                  # Unit/integration tests and safe fixtures
@@ -122,26 +122,32 @@ Current response is intentionally incomplete:
 }
 ```
 
-## Manual Google Apps Script Steps Still Required
+## Gmail Add-on Integration Status
 
 An Apps Script project has been created and basic execution was verified manually by the project owner:
 
 - Project ID: `1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGbVDUu-ro7MmW3rFfxs`
 - Project URL: https://script.google.com/home/projects/1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGbVDUu-ro7MmW3rFfxs/edit
 
-Local source now contains a Gmail contextual trigger and CardService UI. Still required:
+Verified on 2026-10-12:
 
-1. Review and push the local `addon/` files to the existing Apps Script project with `clasp`.
-2. Verify the Gmail contextual trigger and requested scopes in the Apps Script editor.
-3. Configure a secure HTTPS backend URL reachable from Google servers; `localhost` will not work for live Apps Script.
-4. Store backend auth material in Apps Script properties or another non-committed secret store.
-5. Install/test the add-on in a real consenting Gmail account using synthetic emails.
+- Local source was synchronized to Apps Script with `clasp`.
+- Script Properties were configured for backend URL and token.
+- The unpublished add-on was installed and authorized in a real Gmail account.
+- Gmail displayed the selected email subject and sender.
+- Clicking **Analyze Email** reached FastAPI through ngrok and displayed the expected `DEMO / NOT ANALYZED` response.
+
+Still required:
+
+1. Make startup/shutdown repeatable for backend and ngrok.
+2. Keep backend auth material in environment variables and Apps Script Properties only.
+3. Replace the demo response with real evidence-based analysis after detector tests are in place.
 
 ## Apps Script Local Sync
 
-Recommended local synchronization is Google's `clasp` CLI. It is not installed yet in this environment.
+Local synchronization uses Google's `clasp` CLI.
 
-Manual setup:
+Manual setup on a new machine:
 
 ```powershell
 # Install Node.js/npm first, then:
@@ -177,15 +183,14 @@ Useful official docs:
 - https://developers.google.com/workspace/add-ons/gmail/extending-message-ui
 - https://developers.google.com/apps-script/reference/url-fetch/url-fetch-app
 
-## Open Decisions Before Gmail Integration
+## Open Decisions After Integration Proof
 
-- Backend hosting or tunnel provider for an HTTPS URL reachable by Apps Script.
-- Add-on-to-backend authentication strategy and secret rotation.
-- Exact Gmail current-message scopes and event/message access pattern.
+- Repeatable backend/ngrok startup and shutdown procedure.
+- Add-on-to-backend authentication rotation/replacement if the project grows beyond a single-user prototype.
 - Request size limits and redaction policy for logs/errors.
 - Final versioned `/analyze` contract and scoring semantics.
 - Whether authentication metadata can be trusted from available Gmail/Add-on data.
 
 ## Validation Status
 
-Initial validation is limited to local tooling and backend skeleton checks. Current tests pass for the backend skeleton. Do not claim Gmail integration, deployment, or detection accuracy until those flows are implemented and tested.
+Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Current automated tests pass for the backend/add-on source contract. Do not claim detection accuracy until real detectors, fixtures, and evaluation are implemented.
