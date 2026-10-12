@@ -101,7 +101,7 @@ Do not commit `.clasp.json` or Google auth tokens.
 
 Remote repository: https://github.com/Waffles4me/Inbox_Guardian
 
-`origin` is configured locally. First push is pending verification of publish-safe contents and GitHub push permissions.
+`origin` is configured locally. The first push succeeded on branch `master`.
 
 Confidentiality rule: `UPWIND_HOME_ASSIGNMENT.md` must remain local and must never be committed or pushed. The public README summarizes the assignment requirements without reproducing the assignment document.
 
@@ -122,4 +122,4 @@ Useful official docs:
 
 ## Validation Status
 
-Initial validation is limited to local tooling and backend skeleton checks. Do not claim Gmail integration, deployment, or detection accuracy until those flows are implemented and tested.
+Initial validation is limited to local tooling and backend skeleton checks. Current tests pass for the backend skeleton. Do not claim Gmail integration, deployment, or detection accuracy until those flows are implemented and tested.

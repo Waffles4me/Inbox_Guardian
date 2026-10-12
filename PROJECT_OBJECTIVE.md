@@ -274,10 +274,10 @@ Any agent proposing changes to approved scope, threat categories, score semantic
 |---|---|
 | Repository URL | `https://github.com/Waffles4me/Inbox_Guardian` |
 | Repository visibility | Public, per user-provided setup |
-| Connection status | Repository reachable with `git ls-remote`; returned success with no refs, consistent with an empty repository |
+| Connection status | Repository reachable; `git ls-remote --heads origin` verified `refs/heads/master` |
 | Local remote | `origin` configured to `https://github.com/Waffles4me/Inbox_Guardian.git` |
-| Push permissions | Not yet verified; first push pending pre-publication decision on assignment text |
-| GitHub synchronization | Mandatory after every development session once push access is verified |
+| Push permissions | Verified by successful push to `origin/master` |
+| GitHub synchronization | Mandatory after every development session |
 
 ### Google Apps Script
 
@@ -310,14 +310,14 @@ Manual setup needed:
 > **Agents must replace/update this section at the end of every working session.** Never mark something as deployed, tested or complete without evidence.
 
 - **As of:** 2026-10-12 (initial setup session)
-- **Current state:** Local repository and minimal backend scaffold created. Public GitHub repository URL is known and configured as `origin`; first push is pending. Apps Script project was created and tested manually by the user, but local/agent source synchronization is not configured. **No backend deployment, live HTTPS endpoint, Gmail integration, public pushed source, or threat detection engine exists yet.**
+- **Current state:** Local repository and minimal backend scaffold created. Public GitHub repository URL is known, configured as `origin`, and synchronized on branch `master`. Apps Script project was created and tested manually by the user, but local/agent source synchronization is not configured. **No backend deployment, live HTTPS endpoint, Gmail integration, or threat detection engine exists yet.**
 - **Completed decisions:** Preserve narrow on-demand Gmail Add-on MVP; Python/FastAPI backend scaffold; `pyproject.toml` dependency management; no committed credentials; stub `/analyze` returns `INCOMPLETE` until real detection exists.
 - **Work completed in this session:** Initialized local Git repository; created minimal project structure (`addon/`, `backend/app/`, `tests/`, `docs/`); added `.gitignore`, `.env.example`, `README.md`, FastAPI `/health` and stub `/analyze`, Pydantic request/response models, setup/security docs, and backend skeleton tests.
 - **In progress:** WBS 0 setup. Local Python backend environment exists in `.venv`; dependencies installed after resolving Windows temp/UTF-8 path issues.
-- **Known blockers / unknowns:** Node/npm/clasp are not installed; agent Google authentication/App Script source access is not available; exact Gmail scopes, backend HTTPS hosting, add-on-to-backend authentication, request limits, logging/redaction policy, scoring thresholds, and detector dataset remain open. Public inclusion of `UPWIND_HOME_ASSIGNMENT.md` requires user decision before first push.
+- **Known blockers / unknowns:** Node/npm/clasp are not installed; agent Google authentication/App Script source access is not available; exact Gmail scopes, backend HTTPS hosting, add-on-to-backend authentication, request limits, logging/redaction policy, scoring thresholds, and detector dataset remain open.
 - **Next WBS task:** Complete the remaining G0 decisions, especially backend HTTPS/auth plan and exact Gmail contextual-message scopes, then start WBS `1.1-1.5`: create the real Apps Script Gmail Add-on manually and prove opened-email -> backend -> card response.
-- **Evidence of tests/deployment:** `.\.venv\Scripts\python.exe -m pytest` passed `2 passed, 2 warnings` on 2026-10-12. Import sanity check printed `InboxGuardian Backend`. No deployment or Gmail test was performed.
-- **Working tree/repository status:** Local Git repository initialized; `origin` configured to `https://github.com/Waffles4me/Inbox_Guardian.git`; no commits yet. New project files are uncommitted.
+- **Evidence of tests/deployment:** `.\.venv\Scripts\python.exe -m pytest -o cache_dir=.tmp\pytest-cache-current` passed `2 passed, 2 warnings` on 2026-10-12. `git ls-remote --heads origin` verified remote branch `master`. No backend deployment or Gmail integration test was performed.
+- **Working tree/repository status:** Local Git repository initialized; `origin` configured to `https://github.com/Waffles4me/Inbox_Guardian.git`; branch `master` tracks `origin/master`. `UPWIND_HOME_ASSIGNMENT.md` is ignored and not tracked.
 
 ### Session log (append concise entries)
 
@@ -327,6 +327,7 @@ Manual setup needed:
 | 2026-10-12 | Codex initial setup | Git repo initialized; minimal FastAPI backend, dependency config, README, `.gitignore`, `.env.example`, docs and tests added | `pytest`: 2 passed; backend import sanity check passed | Finish G0 decisions; manually create Apps Script project; prove Gmail-to-backend slice |
 | 2026-10-12 | Codex assignment audit | `UPWIND_HOME_ASSIGNMENT.md` reviewed; assignment checklist updated; WBS 0.1 unblocked and marked complete | Documentation audit only | Verify Google/App Script access; choose HTTPS/auth plan |
 | 2026-10-12 | Codex external services setup | GitHub repo reachability verified; `origin` configured; Apps Script project status and clasp sync plan documented | `git ls-remote` succeeded; no Apps Script source access verified | Decide whether to publish assignment text; verify push permissions; install/auth clasp |
+| 2026-10-12 | Codex publishing policy and first sync | Permanent rule added: never commit/push `UPWIND_HOME_ASSIGNMENT.md`; file ignored; safe files committed and pushed to GitHub | `pytest`: 2 passed; secret scan/staged review passed; remote branch verified | Install/auth clasp; choose backend HTTPS/auth plan |
 
 ## 14. References
 
