@@ -287,9 +287,9 @@ Any agent proposing changes to approved scope, threat categories, score semantic
 | Project ID | `1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGbVDUu-ro7MmW3rFfxs` |
 | Basic Apps Script access | Verified manually by the user |
 | Test function execution | Passed manually, per user report |
-| Agent access | Not verified; project URL alone does not grant authenticated source/config access |
-| Agent read/edit/sync capability | Not available until local clasp setup and Google authentication are completed |
-| Local synchronization method | Recommended: Google `clasp` with `addon/` as the local root, after installing Node/npm, enabling Apps Script API, running `clasp login`, and connecting to the existing project ID |
+| Agent access | Local clasp connection verified; no remote push/deploy performed |
+| Agent read/edit/sync capability | Local files can be edited; `clasp status` works and lists `Code.js` and `appsscript.json`; pushing requires explicit user approval |
+| Local synchronization method | Google `clasp` with `addon/` as the local root and local `.clasp.json` pointing to the existing project ID |
 | Gmail Add-on deployment | Not started |
 
 ### Local Apps Script Synchronization Plan
@@ -309,15 +309,15 @@ Manual setup needed:
 
 > **Agents must replace/update this section at the end of every working session.** Never mark something as deployed, tested or complete without evidence.
 
-- **As of:** 2026-10-12 (initial setup session)
-- **Current state:** Local repository and minimal backend scaffold created. Public GitHub repository URL is known, configured as `origin`, and synchronized on branch `master`. Apps Script project was created and tested manually by the user, but local/agent source synchronization is not configured. **No backend deployment, live HTTPS endpoint, Gmail integration, or threat detection engine exists yet.**
-- **Completed decisions:** Preserve narrow on-demand Gmail Add-on MVP; Python/FastAPI backend scaffold; `pyproject.toml` dependency management; no committed credentials; stub `/analyze` returns `INCOMPLETE` until real detection exists.
-- **Work completed in this session:** Initialized local Git repository; created minimal project structure (`addon/`, `backend/app/`, `tests/`, `docs/`); added `.gitignore`, `.env.example`, `README.md`, FastAPI `/health` and stub `/analyze`, Pydantic request/response models, setup/security docs, and backend skeleton tests.
-- **In progress:** WBS 0 setup. Local Python backend environment exists in `.venv`; dependencies installed after resolving Windows temp/UTF-8 path issues.
-- **Known blockers / unknowns:** Node/npm/clasp are not installed; agent Google authentication/App Script source access is not available; exact Gmail scopes, backend HTTPS hosting, add-on-to-backend authentication, request limits, logging/redaction policy, scoring thresholds, and detector dataset remain open.
-- **Next WBS task:** Complete the remaining G0 decisions, especially backend HTTPS/auth plan and exact Gmail contextual-message scopes, then start WBS `1.1-1.5`: create the real Apps Script Gmail Add-on manually and prove opened-email -> backend -> card response.
-- **Evidence of tests/deployment:** `.\.venv\Scripts\python.exe -m pytest -o cache_dir=.tmp\pytest-cache-current` passed `2 passed, 2 warnings` on 2026-10-12. `git ls-remote --heads origin` verified remote branch `master`. No backend deployment or Gmail integration test was performed.
-- **Working tree/repository status:** Local Git repository initialized; `origin` configured to `https://github.com/Waffles4me/Inbox_Guardian.git`; branch `master` tracks `origin/master`. `UPWIND_HOME_ASSIGNMENT.md` is ignored and not tracked.
+- **As of:** 2026-10-12 (local Gmail integration slice)
+- **Current state:** Local repository contains a Gmail Add-on CardService interface and authenticated FastAPI `/analyze` demo endpoint. Public GitHub repository URL is known, configured as `origin`, and synchronized on branch `master` before this session's pending commit. Apps Script project was created and tested manually by the user; local `.clasp.json` matches the documented project ID and `clasp status` works. **No live HTTPS endpoint, Apps Script push/deployment, Gmail live round-trip, or threat detection engine exists yet.**
+- **Completed decisions:** Preserve narrow on-demand Gmail Add-on MVP; Python/FastAPI backend scaffold; `pyproject.toml` dependency management; no committed credentials; `/analyze` remains an `INCOMPLETE` `DEMO / NOT ANALYZED` connectivity response until real detection exists; single-user prototype auth uses `X-InboxGuardian-Token` from environment/Script Properties.
+- **Work completed in this session:** Implemented local Gmail add-on manifest/contextual trigger/CardService UI, subject/sender display, Analyze Email action, safe error/demo result states, backend token auth, bounded request validation, expanded tests, and `docs/gmail-integration-runbook.md`.
+- **In progress:** WBS 1 Gmail-to-backend vertical slice. Local source is prepared, but no `clasp push`, deployment, HTTPS tunnel, or live Gmail verification has been performed.
+- **Known blockers / unknowns:** Need user approval before `clasp push`; need HTTPS exposure choice/tunnel URL; need Script Properties for backend URL and token; live Gmail authorization/install/test remains manual; scoring thresholds and detector dataset remain open.
+- **Next WBS task:** Start backend with `INBOXGUARDIAN_API_TOKEN`, expose it over a temporary HTTPS tunnel, set Apps Script Properties, approve `clasp push`, then test opened Gmail message -> add-on -> backend -> demo result card.
+- **Evidence of tests/deployment:** `.\.venv\Scripts\python.exe -m pytest -o cache_dir=.tmp\pytest-cache-current` passed `13 passed, 2 warnings` on 2026-10-12. `clasp status` listed `Code.js` and `appsscript.json`. No backend deployment or Gmail live integration test was performed.
+- **Working tree/repository status:** Local branch `master` tracks `origin/master`; changes from this session are pending commit/push until final security checks pass. `UPWIND_HOME_ASSIGNMENT.md` and `addon/.clasp.json` are ignored and not tracked.
 
 ### Session log (append concise entries)
 
@@ -328,6 +328,7 @@ Manual setup needed:
 | 2026-10-12 | Codex assignment audit | `UPWIND_HOME_ASSIGNMENT.md` reviewed; assignment checklist updated; WBS 0.1 unblocked and marked complete | Documentation audit only | Verify Google/App Script access; choose HTTPS/auth plan |
 | 2026-10-12 | Codex external services setup | GitHub repo reachability verified; `origin` configured; Apps Script project status and clasp sync plan documented | `git ls-remote` succeeded; no Apps Script source access verified | Decide whether to publish assignment text; verify push permissions; install/auth clasp |
 | 2026-10-12 | Codex publishing policy and first sync | Permanent rule added: never commit/push `UPWIND_HOME_ASSIGNMENT.md`; file ignored; safe files committed and pushed to GitHub | `pytest`: 2 passed; secret scan/staged review passed; remote branch verified | Install/auth clasp; choose backend HTTPS/auth plan |
+| 2026-10-12 | Codex local Gmail integration slice | Local Apps Script add-on UI and protected backend demo `/analyze` contract implemented; runbook added | `pytest`: 13 passed; `clasp status` works locally | Approve `clasp push`; configure HTTPS tunnel and Script Properties; live Gmail test |
 
 ## 14. References
 

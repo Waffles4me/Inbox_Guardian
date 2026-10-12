@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 Verdict = Literal[
@@ -25,6 +25,16 @@ class EmailPayload(BaseModel):
     html_body: str = Field(default="", max_length=50_000)
     headers: dict[str, str] = Field(default_factory=dict)
     attachment_metadata: list[AttachmentMetadata] = Field(default_factory=list, max_length=25)
+
+    @field_validator("headers")
+    @classmethod
+    def limit_headers(cls, headers: dict[str, str]) -> dict[str, str]:
+        if len(headers) > 50:
+            raise ValueError("headers cannot contain more than 50 entries")
+        for key, value in headers.items():
+            if len(key) > 255 or len(value) > 2_000:
+                raise ValueError("header names and values must be bounded")
+        return headers
 
 
 class AnalyzeRequest(BaseModel):

@@ -55,7 +55,72 @@ Test command:
 py -m pytest
 ```
 
-The current `/analyze` endpoint returns a clearly labelled stub response only. It does not perform threat detection.
+The current `/analyze` endpoint requires `X-InboxGuardian-Token` and returns a clearly labelled `DEMO / NOT ANALYZED` response only. It does not perform threat detection.
+
+For local testing, set the backend token outside Git:
+
+```powershell
+$env:INBOXGUARDIAN_API_TOKEN = "replace-with-local-demo-token"
+```
+
+Authenticated analyze check:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/analyze `
+  -Headers @{ "X-InboxGuardian-Token" = $env:INBOXGUARDIAN_API_TOKEN } `
+  -ContentType "application/json" `
+  -Body '{"schema_version":"1.0","email":{"subject":"Demo","from":"demo@example.test"}}'
+```
+
+## API Contract
+
+`POST /analyze`
+
+Required header:
+
+```text
+X-InboxGuardian-Token: <shared demo token>
+```
+
+Minimal request:
+
+```json
+{
+  "schema_version": "1.0",
+  "email": {
+    "subject": "Demo",
+    "from": "sender@example.test",
+    "reply_to": "",
+    "text_body": "",
+    "html_body": "",
+    "headers": {},
+    "attachment_metadata": []
+  }
+}
+```
+
+Current response is intentionally incomplete:
+
+```json
+{
+  "schema_version": "1.0",
+  "risk_score": 0,
+  "score_type": "heuristic_risk_index_not_probability",
+  "verdict": "INCOMPLETE",
+  "findings": [
+    {
+      "id": "demo_not_analyzed",
+      "severity": "info",
+      "title": "DEMO / NOT ANALYZED"
+    }
+  ],
+  "limitations": ["Threat detection is not implemented yet."],
+  "recommended_action": "Do not use this demo response as a security assessment.",
+  "detector_version": "stub-0.1.0"
+}
+```
 
 ## Manual Google Apps Script Steps Still Required
 
@@ -64,14 +129,13 @@ An Apps Script project has been created and basic execution was verified manuall
 - Project ID: `1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGbVDUu-ro7MmW3rFfxs`
 - Project URL: https://script.google.com/home/projects/1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGbVDUu-ro7MmW3rFfxs/edit
 
-Still required:
+Local source now contains a Gmail contextual trigger and CardService UI. Still required:
 
-1. Configure it as a Google Workspace Gmail Add-on using CardService.
-2. Add a Gmail contextual trigger for opened messages.
-3. Choose and verify least-privilege scopes for current-message access and `UrlFetchApp`.
-4. Configure a secure HTTPS backend URL reachable from Google servers; `localhost` will not work for live Apps Script.
-5. Store backend auth material in Apps Script properties or another non-committed secret store.
-6. Install/test the add-on in a real consenting Gmail account using synthetic emails.
+1. Review and push the local `addon/` files to the existing Apps Script project with `clasp`.
+2. Verify the Gmail contextual trigger and requested scopes in the Apps Script editor.
+3. Configure a secure HTTPS backend URL reachable from Google servers; `localhost` will not work for live Apps Script.
+4. Store backend auth material in Apps Script properties or another non-committed secret store.
+5. Install/test the add-on in a real consenting Gmail account using synthetic emails.
 
 ## Apps Script Local Sync
 
@@ -96,6 +160,8 @@ clasp pull
 ```
 
 Do not commit `.clasp.json` or Google auth tokens.
+
+Manual integration details are in [docs/gmail-integration-runbook.md](docs/gmail-integration-runbook.md). Do not run `clasp push`, deploy, or authorize new scopes without an explicit review step.
 
 ## GitHub
 
