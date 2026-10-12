@@ -169,6 +169,8 @@ Do not commit `.clasp.json` or Google auth tokens.
 
 Manual integration details are in [docs/gmail-integration-runbook.md](docs/gmail-integration-runbook.md). Do not run `clasp push`, deploy, or authorize new scopes without an explicit review step.
 
+Daily local startup and shutdown steps are in [docs/development-startup.md](docs/development-startup.md). Use that guide to restart FastAPI and ngrok without changing the existing Apps Script project.
+
 ## GitHub
 
 Remote repository: https://github.com/Waffles4me/Inbox_Guardian
@@ -185,7 +187,7 @@ Useful official docs:
 
 ## Open Decisions After Integration Proof
 
-- Repeatable backend/ngrok startup and shutdown procedure.
+- Whether to add a small local startup helper after the manual startup flow remains stable.
 - Add-on-to-backend authentication rotation/replacement if the project grows beyond a single-user prototype.
 - Request size limits and redaction policy for logs/errors.
 - Final versioned `/analyze` contract and scoring semantics.

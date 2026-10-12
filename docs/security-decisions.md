@@ -11,12 +11,18 @@
 - Use a shared demo token in the `X-InboxGuardian-Token` header for the first single-user Apps Script-to-backend prototype.
 - Store the backend URL and demo token outside Git: backend environment variables locally, Apps Script Properties remotely.
 - The current backend response is `DEMO / NOT ANALYZED` and must not be presented as a real security assessment.
+- Use ngrok HTTPS forwarding to `127.0.0.1:8000` for the local single-user integration demo.
+- Keep startup manual for now instead of adding an all-in-one script that might hide state or expose tokens.
 
-## Open Before Gmail Integration
+## Resolved By Gmail Integration Spike
 
-- HTTPS hosting or secure tunnel for Apps Script to reach the backend.
+- HTTPS tunnel for Apps Script to reach the backend: ngrok was manually verified.
+- Manifest scopes for current-message read and external requests were sufficient for the verified Gmail flow.
+- Request size limits exist for message body, HTML, headers, and attachment metadata in the backend model.
+
+## Still Open
+
 - Rotation/replacement plan for the demo token if the project becomes more than a single-user prototype.
-- Live verification that the local manifest scopes are sufficient and no broader Gmail scopes are needed.
-- Request size limits for message body, HTML, headers, and attachments metadata.
 - Sensitive logging and redaction rules.
 - Whether Gmail authentication metadata is available with trustworthy provenance.
+- Final scoring policy and detector evidence schema.

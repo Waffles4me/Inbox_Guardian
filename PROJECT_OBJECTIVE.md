@@ -1,6 +1,6 @@
 # InboxGuardian — Project Objective & Agent Operating Guide
 
-> **Status:** PLANNING / NOT IMPLEMENTED  
+> **Status:** Gmail-to-backend integration verified; threat detection pending
 > **Last updated:** 2026-10-12  
 > **Assignment:** Upwind Security — Security Analyst Home Assignment  
 > **Delivery constraint:** 48-hour focused development window, with a working live Gmail demonstration as the primary milestone.  
@@ -128,9 +128,9 @@ Python 3 / FastAPI backend (reachable by Apps Script)
 Gmail Add-on results card (no external UI required)
 ```
 
-**Implementation starting conditions:** A basic Google Apps Script test project now exists and was manually verified by the user, but there is **no configured Gmail Add-on**, OAuth/Google Cloud setup, backend deployment, or working Gmail integration assumed. No persistent database is necessary for the first version; process on demand and avoid storing email content.
+**Implementation status:** The basic Gmail-to-backend vertical slice has been manually verified: opened Gmail message -> Apps Script Gmail Add-on -> ngrok HTTPS -> local FastAPI -> JSON response -> Gmail card. The backend response remains `DEMO / NOT ANALYZED`; no real threat detection or scoring engine is implemented. No persistent database is necessary for the first version; process on demand and avoid storing email content.
 
-**Practical priorities:** early proof-of-connectivity with a minimal `/health` endpoint and a test `/analyze` response, then implement real parsing/detection. The backend must be reachable from Google's servers: `localhost` alone is not sufficient for live Apps Script integration. Select and verify an HTTPS hosting/tunneling method before integration; avoid publicly exposing unauthenticated analysis endpoints. Do not rely on Google Cloud verification/public Marketplace launch as part of the 48-hour MVP. Verify the minimal current-message Gmail scope and required external-request scope against current Google docs; do not assume access to all inbox content.
+**Practical priorities:** preserve the verified proof-of-connectivity while implementing real parsing/detection behind the existing `/analyze` contract. The backend must be reachable from Google's servers: `localhost` alone is not sufficient for live Apps Script integration. The current local development path uses ngrok HTTPS forwarding to `127.0.0.1:8000`; avoid publicly exposing unauthenticated analysis endpoints. Do not rely on Google Cloud verification/public Marketplace launch as part of the 48-hour MVP. Verify any future Gmail scope changes against current Google docs; do not assume access to all inbox content.
 
 ### Proposed API contract (draft; freeze before implementation)
 
@@ -258,13 +258,13 @@ Any agent proposing changes to approved scope, threat categories, score semantic
 | Option B: explainable multi-signal investigator | **Approved** | User selected it over pure rules or LLM-led analysis |
 | Simplicity, assignment alignment, transparent suspicion | **Approved** | User's three product priorities |
 | Two documents (`PROJECT_OBJECTIVE.md`, `WBS.md`) | **Approved design** | One source of truth + one operational plan |
-| New Apps Script project from scratch | **Approved** | No preexisting Google setup assumed |
+| Existing Apps Script project preservation | **Approved** | Project ID is documented and local source is synchronized with `clasp`; do not recreate it |
 | Opened-email, on-demand Gmail Add-on (not proactive monitor) | **Approved direction** | Upwind assignment requirement and 48-hour limit |
-| FastAPI + Apps Script CardService | **Proposed implementation** | Confirm compatibility during technical spike |
+| FastAPI + Apps Script CardService | **Implemented for integration spike** | Manual Gmail-to-backend flow verified; detection remains pending |
 | English-only linguistic heuristics | **Proposed MVP scope** | Limited time; structural signals can work more broadly |
-| Hosting, auth strategy, exact scopes | **OPEN** | Validate early against current Google documentation |
+| Local HTTPS tunnel and demo auth | **Verified for prototype** | ngrok HTTPS to `127.0.0.1:8000`; shared demo token via env var and Script Properties |
 | Scoring weights / thresholds and dataset | **OPEN** | Must be explicit and checked before claims |
-| Repository URL and live demonstration account | **NOT YET SET** | Record once created |
+| Repository URL and live demonstration account | **SET / USER-VERIFIED** | GitHub URL is recorded; real Gmail account add-on verification was reported by the user |
 
 ## 12. External Services and Integrations
 
@@ -305,17 +305,21 @@ Manual setup needed:
 5. Connect the local `addon/` directory to the existing project ID, for example from inside `addon/`: `clasp clone 1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGbVDUu-ro7MmW3rFfxs .` or create a local `.clasp.json` with that `scriptId`.
 6. Use `clasp pull` to import the current remote source, and `clasp push` only after reviewing local changes. Do not deploy from clasp until the Gmail Add-on manifest/source is ready.
 
+### Local Development Startup
+
+Use [docs/development-startup.md](docs/development-startup.md) to restart the local backend/ngrok development flow, verify `/health`, verify authenticated `/analyze`, confirm Apps Script Properties, open the existing Gmail Add-on, and stop processes manually. This guide preserves the current working implementation and does not create or deploy a new Apps Script project.
+
 ## 13. Session Handoff — continuously maintained
 
 > **Agents must replace/update this section at the end of every working session.** Never mark something as deployed, tested or complete without evidence.
 
 - **As of:** 2026-10-12 (Gmail-to-backend integration verified)
-- **Current state:** Gmail-to-backend integration proof of concept is complete. Public GitHub repository URL is known, configured as `origin`, and synchronized on branch `master` before this session's pending commit. The unpublished Gmail Add-on was synchronized with Apps Script using `clasp`, installed/authorized in a real Gmail account, and verified to call local FastAPI through ngrok HTTPS. **No real threat detection engine exists yet.**
+- **Current state:** Gmail-to-backend integration proof of concept is complete. Public GitHub repository URL is known, configured as `origin`, and synchronized on branch `master` before this session's pending commit. The unpublished Gmail Add-on was synchronized with Apps Script using `clasp`, installed/authorized in a real Gmail account, and verified to call local FastAPI through ngrok HTTPS. A dedicated startup guide now documents how to resume the working local backend/ngrok flow. **No real threat detection engine exists yet.**
 - **Completed decisions:** Preserve narrow on-demand Gmail Add-on MVP; Python/FastAPI backend scaffold; `pyproject.toml` dependency management; no committed credentials; `/analyze` remains an `INCOMPLETE` `DEMO / NOT ANALYZED` connectivity response until real detection exists; single-user prototype auth uses `X-InboxGuardian-Token` from environment/Script Properties.
-- **Work completed in this session:** Recorded the verified integration milestone; updated WBS/README/status docs to reflect Gmail -> Apps Script -> ngrok HTTPS -> FastAPI -> Gmail card success while preserving that `/analyze` is still `DEMO / NOT ANALYZED`.
+- **Work completed in this session:** Recorded the end-of-day verified integration checkpoint; added `docs/development-startup.md`; linked the startup guide from README and this objective; clarified manually verified behavior, automated tests, and remaining unverified detection work.
 - **In progress:** Transition from WBS 1 integration spike to WBS 2 detection engine. The working integration path should be preserved while detector logic is added behind the existing contract.
-- **Known blockers / unknowns:** Repeatable backend/ngrok startup and shutdown procedure needs improvement; scoring thresholds, detector implementation, fixtures, evaluation dataset, and final demo runbook remain open.
-- **Next WBS task:** Create a repeatable startup/shutdown runbook, then implement the first explainable detection pipeline with synthetic fixtures and tests.
+- **Known blockers / unknowns:** Startup process is documented but not yet automated; scoring thresholds, detector implementation, fixtures, evaluation dataset, and final demo runbook remain open. A future helper script may be useful, but should not print secrets or mutate Apps Script Properties.
+- **Next WBS task:** Begin WBS 2 with threat scope/evidence definitions, canonical email parsing/normalization, first independent detectors, scoring explanations, and synthetic fixtures/tests.
 - **Evidence of tests/deployment:** User reported verified live Gmail flow on 2026-10-12: Gmail -> Apps Script -> ngrok HTTPS -> FastAPI -> JSON response -> Gmail Add-on card; multiple HTTP 200 `/analyze` requests observed in Uvicorn logs. `.\.venv\Scripts\python.exe -m pytest -o cache_dir=.tmp\pytest-cache-current` passed `13 passed, 2 warnings`. No real detection was performed.
 - **Working tree/repository status:** Local branch `master` tracks `origin/master`; changes from this session are pending commit/push until final security checks pass. `UPWIND_HOME_ASSIGNMENT.md` and `addon/.clasp.json` are ignored and not tracked.
 
@@ -330,6 +334,7 @@ Manual setup needed:
 | 2026-10-12 | Codex publishing policy and first sync | Permanent rule added: never commit/push `UPWIND_HOME_ASSIGNMENT.md`; file ignored; safe files committed and pushed to GitHub | `pytest`: 2 passed; secret scan/staged review passed; remote branch verified | Install/auth clasp; choose backend HTTPS/auth plan |
 | 2026-10-12 | Codex local Gmail integration slice | Local Apps Script add-on UI and protected backend demo `/analyze` contract implemented; runbook added | `pytest`: 13 passed; `clasp status` works locally | Approve `clasp push`; configure HTTPS tunnel and Script Properties; live Gmail test |
 | 2026-10-12 | User/Codex verified integration handoff | Live Gmail-to-backend integration status recorded; G1 marked achieved in WBS | User-reported Gmail/ngrok/FastAPI/Uvicorn evidence; `pytest`: 13 passed | Build repeatable startup flow, then start detector pipeline |
+| 2026-10-12 | Codex end-of-day checkpoint | Startup guide added; manual vs automated verification boundaries documented; project handoff refreshed | `pytest`: 13 passed, 2 warnings; assignment/clasp/env files not tracked | Commit/push docs-only checkpoint; start WBS 2 tomorrow |
 
 ## 14. References
 
