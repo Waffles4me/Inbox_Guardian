@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+*.egg-info
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+UPWIND_HOME_ASSIGNMENT.md
+*.pem
+*.key
+*.p12
+*.json.key
+credentials.json
+client_secret*.json
+token.json
+
+# Google Apps Script / clasp
+.clasp.json
+appsscript.local.json
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+.tmp/
+pytest-cache-files-*/
