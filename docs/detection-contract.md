@@ -1,15 +1,15 @@
-# InboxGuardian — Detection Contract
+# InboxGuardian - Detection Contract
 
-> **Version:** Draft 0.1 — 2026-10-13  
-> **Status:** Six-detector scope and **Method C scoring architecture approved**; parser and internal sender detector implemented; numerical weights, thresholds, correlation adjustments and coverage requirements **not yet approved**  
-> **Source of truth:** [`PROJECT_OBJECTIVE.md`](../PROJECT_OBJECTIVE.md) and [`WBS.md`](../WBS.md)  
+> **Version:** Draft 0.1 - 2026-10-13
+> **Status:** Six-detector scope and **Method C scoring architecture approved**; parser plus internal sender, URL and credential-context detectors implemented; numerical weights, thresholds, correlation adjustments and coverage requirements **not yet approved**
+> **Source of truth:** [`PROJECT_OBJECTIVE.md`](../PROJECT_OBJECTIVE.md) and [`WBS.md`](../WBS.md)
 > **Purpose:** Specify testable evidence, input availability, detector outcomes, scoring semantics, and acceptance criteria without changing the working Gmail integration.
 
-> **Implementation note:** WBS 2.1 parser and WBS 2.2 sender detector code now exist internally, but no detector or scorer is wired into the public `/analyze` endpoint. The latest automated run passed **43 tests, 2 warnings** on 2026-10-13.
+> **Implementation note:** WBS 2.1 parser, WBS 2.2 sender detector, WBS 2.3 URL detector, and WBS 2.4 credential-context detector code now exist internally, but no detector or scorer is wired into the public `/analyze` endpoint. The latest automated run passed **84 tests, 2 warnings** on 2026-10-13.
 
 ## 1. Baseline and change boundary
 
-The **manually verified** flow is Gmail opened message → Apps Script (`addon/Code.js`) → ngrok HTTPS → authenticated FastAPI `POST /analyze` → Gmail CardService. The backend currently returns `INCOMPLETE` with **`DEMO / NOT ANALYZED`**, `detector_version: stub-0.1.0`; no real detector or risk scorer is implemented. The last reported automated run passed **13 tests, 2 warnings** on 2026-10-12; this contract creation did **not** rerun those tests. The live Gmail flow was also manually reconfirmed by the user on 2026-10-13.
+The **manually verified** flow is Gmail opened message -> Apps Script (`addon/Code.js`) -> ngrok HTTPS -> authenticated FastAPI `POST /analyze` -> Gmail CardService. The backend currently returns `INCOMPLETE` with **`DEMO / NOT ANALYZED`**, `detector_version: stub-0.1.0`; no real detector or risk scorer is exposed through this endpoint. The last reported automated run passed **13 tests, 2 warnings** on 2026-10-12; this contract creation did **not** rerun those tests. The live Gmail flow was also manually reconfirmed by the user on 2026-10-13.
 
 Preserve `POST /analyze`, `GET /health`, `X-InboxGuardian-Token`, Apps Script project, current OAuth scopes, and request/response schema version `1.0` during the initial engine work. Do not deploy or rewrite the Add-on as part of the first parser milestone. Treat any future API/schema, Gmail permission, hosting, or ML dependency change as a separately reviewed decision.
 
@@ -18,8 +18,8 @@ Preserve `POST /analyze`, `GET /health`, `X-InboxGuardian-Token`, Apps Script pr
 | ID | Detector family | Approved | Data needed | First implementation priority |
 |---|---|---|---|---|
 | `sender_identity` | Sender impersonation | Yes; implemented internally, not exposed through `/analyze` | `from`, `reply_to`, optional corroborating subject/body | Core |
-| `url_deception` | Deceptive URLs | Yes; not implemented | `text_body`, `html_body`, optionally sender | Core, after parser |
-| `credential_context` | Credential phishing | Yes; not implemented | `subject`, `text_body`, safely extracted visible HTML text, optional link evidence | Core, after parser |
+| `url_deception` | Deceptive URLs | Yes; implemented internally, not exposed through `/analyze` | `text_body`, `html_body`, optionally sender | Core |
+| `credential_context` | Credential phishing | Yes; implemented internally, not exposed through `/analyze` | `subject`, `text_body`, safely extracted visible HTML text, optional link evidence | Core |
 | `attachment_metadata` | Suspicious attachments | Yes; not implemented | filename, MIME/content type, size from trustworthy message API access | Later deterministic increment; blocked on actual data collection |
 | `financial_fraud` | Payment redirection / financial fraud | Yes; not implemented | subject/body and independent identity/link context | Later deterministic increment; cannot establish historical changes |
 | `nlp_phishing` | NLP phishing classifier (TF-IDF + logistic regression candidate) | Yes; not implemented | labeled training/evaluation data, bounded subject/body | Experimental increment, evaluated before score integration |
@@ -85,7 +85,7 @@ These fields are **internal design guidance, not a present API capability**. Pre
 
 ### Findings (existing public fields)
 
-Existing `Finding` fields: `id`, `severity` (`info|low|medium|high`), `title`, `observation`, `interpretation`, and integer `contribution` (0–100). Each emitted finding must have a stable rule-specific ID, an **observed** condition, a **qualified** interpretation that permits benign explanations, and a score contribution that is traceable to an explicit scoring rule. Do not invent evidence, reverse-lookup unverifiable reputation, or expose passwords/OTP codes/URL secrets in observation strings. A detector may yield zero findings while still reporting that it ran.
+Existing `Finding` fields: `id`, `severity` (`info|low|medium|high`), `title`, `observation`, `interpretation`, and integer `contribution` (0-100). Each emitted finding must have a stable rule-specific ID, an **observed** condition, a **qualified** interpretation that permits benign explanations, and a score contribution that is traceable to an explicit scoring rule. Do not invent evidence, reverse-lookup unverifiable reputation, or expose passwords/OTP codes/URL secrets in observation strings. A detector may yield zero findings while still reporting that it ran.
 
 Illustrative (not implemented, not a final weight):
 
@@ -104,7 +104,7 @@ The example contribution of `0` intentionally avoids prematurely agreeing a scor
 
 ## 5. Risk scoring and verdict semantics
 
-**Already agreed:** 0–100 is a `heuristic_risk_index_not_probability`, **not** estimated probability of maliciousness. Conservative, evidence-led scoring; missing evidence never counts as a clean pass. Stable public verdicts:
+**Already agreed:** 0-100 is a `heuristic_risk_index_not_probability`, **not** estimated probability of maliciousness. Conservative, evidence-led scoring; missing evidence never counts as a clean pass. Stable public verdicts:
 
 | Verdict | Intended meaning |
 |---|---|
@@ -113,7 +113,7 @@ The example contribution of `0` intentionally avoids prematurely agreeing a scor
 | `NO_SIGNIFICANT_SIGNALS` | Applicable implemented checks ran and found no significant suspicious evidence; **not safe/benign certification** |
 | `INCOMPLETE` | Assessment could not meaningfully run, or essential evidence/engine capability was unavailable; a numeric placeholder must not be interpreted as low risk |
 
-**Approved scoring architecture (Method C — correlation-aware, category-capped evidence scoring; decision 2026-10-13):**
+**Approved scoring architecture (Method C - correlation-aware, category-capped evidence scoring; decision 2026-10-13):**
 
 1. Each deterministic detector emits evidence-backed, rule-specific findings, with stable identifiers and a way to identify the underlying *observation* that generated them.
 2. Deduplicate overlapping evidence **within and across detector families** so the same URL/sender anomaly is not counted as independent support merely because multiple rules observed it.
@@ -125,7 +125,7 @@ The example contribution of `0` intentionally avoids prematurely agreeing a scor
 
 **Illustrative shape only (not executable or calibrated):** `risk_score = min(100, sum(capped_unique_family_contributions) + justified_distinct_evidence_adjustment)`. Contribution bookkeeping must explain deductions from deduplication, category caps and correlation adjustments without double counting. No specific numerical values are approved by this equation.
 
-**Decision still open:** exact detector weights, correlation bonuses, caps, threshold boundaries, and minimum required detector coverage. Do **not** silently use the illustrative `0–29 / 30–69 / 70–100` ranges from discussion as production thresholds. Decide weights only after producing synthetic positives, realistic benign counterexamples, and inspectable results; version and document changes.
+**Decision still open:** exact detector weights, correlation bonuses, caps, threshold boundaries, and minimum required detector coverage. Do **not** silently use the illustrative `0-29 / 30-69 / 70-100` ranges from discussion as production thresholds. Decide weights only after producing synthetic positives, realistic benign counterexamples, and inspectable results; version and document changes.
 
 **Required invariants for the eventual scorer:**
 
@@ -153,7 +153,7 @@ AnalyzeResponse:
   detector_version: str
 ```
 
-The current Gmail card hardcodes `DEMO / NOT ANALYZED` and does not yet display a real risk index. In a **later**, separate, tested UI milestone: show score (when meaningful), verdict, up to 2–4 informative findings where available, limitations/unknowns, and a concrete user action. If fewer than two meaningful findings exist, show fewer; **do not fabricate findings to fill the UI**. Escape all backend-provided text before passing it to CardService HTML-enabled text widgets. Only remove demo labels once the backend really analyzes input and contract tests pass.
+The current Gmail card hardcodes `DEMO / NOT ANALYZED` and does not yet display a real risk index. In a **later**, separate, tested UI milestone: show score (when meaningful), verdict, up to 2-4 informative findings where available, limitations/unknowns, and a concrete user action. If fewer than two meaningful findings exist, show fewer; **do not fabricate findings to fill the UI**. Escape all backend-provided text before passing it to CardService HTML-enabled text widgets. Only remove demo labels once the backend really analyzes input and contract tests pass.
 
 Expected HTTP behavior should remain: `/health` 200; authenticated well-formed request 200 with validated result; missing/wrong token 401; unconfigured server token 503; invalid input 422; operational failures produce bounded sanitized errors rather than sensitive stack traces. Do not claim that status codes fully describe the operational security posture.
 
@@ -189,6 +189,29 @@ Implemented WBS 2.2 rules in `backend/app/detectors/sender.py`:
 
 The detector returns `INCONCLUSIVE` when From is missing/malformed/ambiguous or Reply-To is malformed/ambiguous. Missing Reply-To, matching domains, display names that merely differ from mailbox local parts, and conservative same/subdomain relationships return `NOT_TRIGGERED`. The detector does not use brand lists, domain reputation, SPF/DKIM/DMARC, network lookups, scoring weights, or public `/analyze` output. Registered-domain/public-suffix handling remains open; the current comparison intentionally favors avoiding false positives over aggressive typosquat detection.
 
+### URL detector milestone
+
+Implemented WBS 2.3 rules in `backend/app/detectors/urls.py`:
+
+- `url_display_destination_mismatch`: triggers when HTML link text explicitly displays an HTTP(S) URL host but the actual `href` destination host differs after parser normalization. Contribution remains `0`.
+- `url_deceptive_subdomain`: triggers when the actual destination host starts with the displayed host plus an additional domain suffix, such as `accounts.example.test.attacker.test` when the visible claim is `accounts.example.test`. Contribution remains `0`.
+- `url_ip_address_host`: triggers on literal IP-address HTTP(S) hosts. Severity is `low`; this is structural evidence only.
+- `url_userinfo_hostname`: triggers when URL userinfo before `@` resembles a hostname while the actual destination host is different.
+
+The detector returns `NOT_TRIGGERED` for normal links, matching displayed/destination hosts, legitimate tracking or redirect-style links without an explicit visible host claim, and messages with no link evidence. It returns `INCONCLUSIVE` when only malformed or unsupported URL evidence is available. It does not compare links to the sender domain, fetch links, expand redirects, resolve DNS, use reputation services, inspect page content, or assign scoring weights. Observations use parsed host values and preserve query/fragment redaction.
+
+### Credential-context detector milestone
+
+Implemented WBS 2.4 rules in `backend/app/detectors/credentials.py`:
+
+- `credential_secret_collection_request`: triggers when active message text asks the recipient to provide passwords, OTP/MFA/security codes, or similar authentication secrets. Contribution remains `0`.
+- `credential_account_verification_with_link`: triggers when account/login verification language appears with parsed URL evidence. Contribution remains `0`.
+- `credential_urgent_account_threat`: triggers when credential request language is paired with account-threat or deadline pressure. Contribution remains `0`.
+- `credential_request_with_link`: triggers when credential request language is paired with link evidence. Contribution remains `0`.
+- `credential_security_bypass_instruction`: triggers when the message instructs the recipient to bypass normal security checks or channels. Contribution remains `0`.
+
+The detector uses subject, plain text body, safely extracted visible HTML text and parsed link presence from `ParsedEmail`. It skips structurally identifiable quoted/forwarded content, redacts code-like 4-8 digit values from observations, and treats missing or ambiguous credential-related language as `INCONCLUSIVE`. Urgency alone, normal account-security newsletters, legitimate password-reset/MFA notifications, and generic password mentions do not trigger. It does not perform scoring, sender/link correlation beyond link-presence corroboration, language translation, reputation checks, page fetching, or public `/analyze` output.
+
 ### Detector milestones
 
 For each implemented rule: one positive synthetic trigger, at least one plausible benign counterexample, missing/ambiguous-field case, and a test that evidence text corresponds to observed input without disclosing secrets. Require aggregated tests for duplicate evidence, correlated vs unrelated signals, score boundaries and `INCOMPLETE` semantics. For attachments include missing metadata vs truly attachment-free distinction; for payments include cases where legitimate approval changes cannot be verified; for NLP use reproducible split, dataset provenance/license review, class-balance discussion, precision/recall/F1/false-positive rate and leakage checks. Small synthetic datasets support demonstrations **not** real-world accuracy claims.
@@ -207,6 +230,6 @@ A real Gmail account must show a suspicious/high-risk synthetic example, a benig
 
 ## 10. First bounded implementation milestone and handoff
 
-**Next Codex task:** implement only a safe, backend-internal normalization/parser module with synthetic tests. Inspect `PROJECT_OBJECTIVE.md`, `WBS.md`, this contract, `backend/app/models.py`, `backend/app/main.py`, `addon/Code.js`, and tests before coding. Keep current integration and `DEMO / NOT ANALYZED` live output untouched. Avoid new network access, Gmail scopes, model training, detector weights, deploys, or public response schema changes. Report file changes, tested scenarios, `pytest` outcomes and existing integration regressions. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
+**Next Codex task:** review WBS 2.5 suspicious attachment metadata collection and representation before implementation. Confirm what metadata Gmail/Add-on can supply, how to distinguish not collected from no attachments, and how to validate filenames, MIME/content type and size without retrieving or executing binary content. Keep current integration and `DEMO / NOT ANALYZED` live output untouched. Avoid new network access, Gmail scopes, model training, detector weights, deploys, or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and existing integration regressions. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
 
 **Gate for this document:** Review and approve the remaining scoring-policy decisions separately. Draft documentation is not evidence of deployed detection. Documentation updates alone do not satisfy WBS 0.5 or G2.

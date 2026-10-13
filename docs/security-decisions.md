@@ -8,6 +8,8 @@
 - Do not follow links from emails during analysis.
 - Safe parser normalization may extract mailbox fields, visible HTML text, HTML anchors, and HTTP(S) URL structure as inert data only.
 - Sender detection may compare parsed From/Reply-To domains and explicit domain claims in display names, but must not make authentication, reputation, ownership, or confirmed impersonation claims.
+- URL detection may compare parsed visible URL text and actual destinations, identify IP-address hosts and confusing URL userinfo, but must not fetch, expand, resolve, render, or reputation-check URLs.
+- Credential-context detection may inspect English subject/body/visible HTML text for request patterns, but must not treat isolated keywords, urgency alone, or legitimate security notifications as proof of phishing.
 - Do not commit secrets, Gmail tokens, private email content, or production `.env` files.
 - Treat the risk score as a heuristic index, not a calibrated probability.
 - Method C is the approved future scoring architecture: deduplicate overlapping evidence, cap detector-family contributions, and allow correlation adjustments only for genuinely independent evidence.
@@ -24,6 +26,8 @@
 - Request size limits exist for message body, HTML, headers, and attachment metadata in the backend model.
 - WBS 2.1 parser limits are explicit: at most 50 plain-text URLs and 50 HTML links are retained per source, individual URLs over 2,048 characters are marked malformed, and visible HTML text output is capped at 20,000 characters.
 - WBS 2.2 sender findings are internal and unscored. The first sender detector treats unrelated Reply-To domains as low-severity supporting evidence, handles missing/malformed identity as inconclusive, and uses conservative same/subdomain handling to reduce false positives.
+- WBS 2.3 URL findings are internal and unscored. The first URL detector treats deceptive display/destination mismatches, prefix-subdomain composition, literal IP hosts, and hostname-like userinfo as structural evidence only.
+- WBS 2.4 credential-context findings are internal and unscored. The first credential detector redacts code-like values, ignores structurally identifiable quoted/forwarded content, and treats missing or ambiguous credential language as inconclusive rather than malicious.
 
 ## Still Open
 

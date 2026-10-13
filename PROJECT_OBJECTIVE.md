@@ -1,6 +1,6 @@
 ﻿# InboxGuardian â€” Project Objective & Agent Operating Guide
 
-> **Status:** Gmail-to-backend integration reconfirmed 2026-10-13; WBS 2.2 sender detector implemented internally; live threat output pending
+> **Status:** Gmail-to-backend integration reconfirmed 2026-10-13; WBS 2.4 credential-context detector implemented internally; live threat output pending
 > **Last updated:** 2026-10-13
 > **Assignment:** Upwind Security â€” Security Analyst Home Assignment
 > **Delivery constraint:** 48-hour focused development window, with a working live Gmail demonstration as the primary milestone.
@@ -83,13 +83,13 @@ These rules are mandatory for every current and future coding agent, including C
 
 ## Approved Threat Detection Scope
 
-This project has exactly **six approved threat detectors**. As of 2026-10-13, none of these detectors is implemented in production code; the current backend `/analyze` endpoint still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response. The approved scope below is therefore the implementation target for WBS 2 and later validation work, not evidence of completed detection capability.
+This project has exactly **six approved threat detectors**. As of 2026-10-13, sender identity, deceptive URL, and credential-context detectors are implemented internally for future orchestration; the current backend `/analyze` endpoint still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response. The approved scope below is therefore the implementation target for WBS 2 and later validation work, not evidence of live Gmail detection capability.
 
 The six detectors should share a common evidence model: each finding must include a stable ID, severity, observable evidence, interpretation, contribution to the heuristic risk index, known limitations, and likely benign explanations where relevant.
 
 ### 1. Sender Impersonation
 
-- **Status:** Approved / planned. Not implemented yet.
+- **Status:** Implemented internally; not wired into `/analyze`.
 - **Purpose:** Detect suspicious sender identities that may misrepresent an individual, brand, service, or organization.
 - **Threat or attack technique addressed:** Brand impersonation, executive impersonation, supplier impersonation, reply-to redirection, and lookalike-domain social engineering.
 - **Observable indicators:** Display-name and address mismatch, sender name claiming a known service while using an unrelated domain, Reply-To domain different from From domain, visually similar domains, unusual subdomains, and non-obvious free-mail or delegated senders.
@@ -99,7 +99,7 @@ The six detectors should share a common evidence model: each finding must includ
 
 ### 2. Deceptive URLs
 
-- **Status:** Approved / planned. Not implemented yet.
+- **Status:** Implemented internally; not wired into `/analyze`.
 - **Purpose:** Identify misleading or suspicious hyperlinks without visiting them.
 - **Threat or attack technique addressed:** Link deception, credential-harvesting links, misleading display text, malicious-looking redirects, and suspicious URL construction.
 - **Observable indicators:** Displayed URL or domain differs from destination host, link text claims one brand/domain while `href` points elsewhere, IP-address hosts, suspiciously deep or noisy subdomains, URL shorteners or redirect-looking paths, punycode/unicode lookalikes, and credential-themed paths.
@@ -109,7 +109,7 @@ The six detectors should share a common evidence model: each finding must includ
 
 ### 3. Credential-Phishing Context
 
-- **Status:** Approved / planned. Not implemented yet.
+- **Status:** Implemented internally; not wired into `/analyze`.
 - **Purpose:** Detect attempts to obtain passwords, login approvals, MFA/OTP codes, or authentication actions.
 - **Threat or attack technique addressed:** Credential phishing, account takeover preparation, MFA fatigue or OTP theft, and urgent fake verification workflows.
 - **Observable indicators:** Requests to enter or reset passwords, verify account access, provide MFA/OTP/security codes, click login or document-access links, act under deadline pressure, avoid normal channels, or ignore prior security warnings.
@@ -325,8 +325,8 @@ backend/app/
     |-- __init__.py         # Implemented package marker
     |-- base.py             # Implemented internal detector contract
     |-- sender.py           # Implemented WBS 2.2 sender detector
-    |-- urls.py             # Future
-    |-- credentials.py      # Future
+    |-- urls.py             # Implemented WBS 2.3 URL detector
+    |-- credentials.py      # Implemented WBS 2.4 credential detector
     |-- attachments.py      # Future
     |-- financial.py        # Future
     `-- nlp.py              # Future inference module
@@ -338,8 +338,8 @@ Testing target:
 tests/unit/
 |-- test_email_parsing.py   # Implemented parser tests
 |-- test_sender.py          # Implemented sender tests
-|-- test_urls.py            # Future
-|-- test_credentials.py     # Future
+|-- test_urls.py            # Implemented URL detector tests
+|-- test_credentials.py     # Implemented credential detector tests
 |-- test_attachments.py     # Future
 |-- test_financial.py       # Future
 |-- test_nlp.py             # Future
@@ -465,15 +465,15 @@ Use [docs/development-startup.md](docs/development-startup.md) to restart the lo
 
 > **Agents must replace/update this section at the end of every working session.** Never mark something as deployed, tested or complete without evidence.
 
-- **As of:** 2026-10-13 (WBS 2.2 sender detector implementation)
-- **Current state:** Gmail-to-backend integration remains preserved: `/analyze` still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response and the Apps Script source/manifest were not modified in this detector task. A backend-internal parser and sender impersonation detector now exist for future orchestration, but no detector output is exposed through Gmail or the public API yet. No scorer, NLP model, or Gmail UI replacement is implemented.
+- **As of:** 2026-10-13 (WBS 2.4 credential-context detector implementation)
+- **Current state:** Gmail-to-backend integration remains preserved: `/analyze` still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response and the Apps Script source/manifest were not modified in this detector task. A backend-internal parser, sender detector, URL detector and credential-context detector now exist for future orchestration, but no detector output is exposed through Gmail or the public API yet. No scorer, NLP model, or Gmail UI replacement is implemented.
 - **Approved product scope:** Exactly six detection families are planned: sender, URL, credential context, attachment metadata, financial fraud, NLP. Full scope **does not** imply completed implementation. Three original deterministic families are the initial reliable slice; attachment/financial follow, while NLP is evaluated separately before aggregation.
-- **Work completed in this session:** Added `backend/app/detectors/__init__.py`, `backend/app/detectors/base.py`, `backend/app/detectors/sender.py`, and `tests/unit/test_sender.py`; updated architecture and sender-detector documentation in `PROJECT_OBJECTIVE.md`, `WBS.md`, `docs/detection-contract.md`, `README.md`, and `docs/security-decisions.md`.
+- **Work completed in this session:** Reviewed URL hostname/domain-boundary handling, added URL regression tests, and committed WBS 2.3 as `b86e4fe1f11d24b2e6c1826adf18b1d2a65aafba`. Added `backend/app/detectors/credentials.py` and `tests/unit/test_credentials.py`; extended parser output with `text_body` for internal detectors; updated credential-detector documentation in `PROJECT_OBJECTIVE.md`, `WBS.md`, `docs/detection-contract.md`, `README.md`, and `docs/security-decisions.md`.
 - **Scoring decision (2026-10-13):** Method C (correlation-aware, category-capped evidence scoring) approved as architecture **only**. No scoring implementation, weights, caps, bonuses, thresholds, or required evidence coverage approved. NLP remains experimental and excluded from the aggregate until evaluated.
-- **Open decisions:** Final numerical weights, caps, thresholds, scoring evidence keys, correlation/coverage requirements, attachment metadata collection, NLP dataset/evaluation, public-suffix/registered-domain comparison, and possible future API status/truncation extensions. WBS 0.5 remains open until scoring parameters and semantics are approved. Sender detector findings are currently unscored and internal.
-- **Next task:** Start WBS 2.3 deceptive URL detector as a backend-internal detector using parser URL/link output and synthetic tests. Do not wire detection into `/analyze`, alter Gmail UI, implement scoring, collect attachment metadata, or add NLP without a separate authorization.
-- **Validation evidence:** `.\.venv\Scripts\python.exe -m pytest -q` passed 43 tests with 2 warnings on 2026-10-13. The warnings were the existing Starlette/httpx deprecation and pytest cache write warning. New sender coverage added 15 tests.
-- **Git/security handoff:** No commit or push was performed in this session. Before any commit, review the diff and confirm `UPWIND_HOME_ASSIGNMENT.md`, `addon/.clasp.json`, `.env`, credentials, tokens and real email content are not staged or tracked.
+- **Open decisions:** Final numerical weights, caps, thresholds, scoring evidence keys, correlation/coverage requirements, attachment metadata collection, NLP dataset/evaluation, public-suffix/registered-domain comparison, and possible future API status/truncation extensions. WBS 0.5 remains open until scoring parameters and semantics are approved. Sender, URL and credential-context detector findings are currently unscored and internal.
+- **Next task:** Start WBS 2.5 suspicious attachment metadata detector only after confirming safe metadata collection and representation without downloading attachment content. Do not wire detection into `/analyze`, alter Gmail UI, implement scoring, retrieve attachment binaries, or add NLP without a separate authorization.
+- **Validation evidence:** `.\.venv\Scripts\python.exe -m pytest -q` passed 84 tests with 2 warnings on 2026-10-13. The warnings were the existing Starlette/httpx deprecation and pytest cache write warning. URL boundary and credential-context coverage were added.
+- **Git/security handoff:** WBS 2.3 source/tests were committed as `b86e4fe1f11d24b2e6c1826adf18b1d2a65aafba`; WBS 2.4 code/tests/docs remain uncommitted for review. Before any future commit, review the diff and confirm `UPWIND_HOME_ASSIGNMENT.md`, `addon/.clasp.json`, `.env`, credentials, tokens and real email content are not staged or tracked.
 
 ### Session log (append concise entries)
 
@@ -492,6 +492,8 @@ Use [docs/development-startup.md](docs/development-startup.md) to restart the lo
 | 2026-10-13 | User scoring architecture decision | Approved Method C (category caps, evidence deduplication, only independent corroboration); numerical parameters and coverage remain open | Decision recorded in documentation only; no code/tests/Git changes verified locally | Codex read-only baseline inspection, then WBS 2.1 parsing only |
 | 2026-10-13 | Codex WBS 2.1 parser implementation | Backend-internal parser/normalizer and synthetic parser tests added; docs synchronized; `/analyze` and Apps Script unchanged | `pytest -q`: 28 passed, 2 warnings | Review diff; then WBS 2.2 sender impersonation detector |
 | 2026-10-13 | Codex WBS 2.2 sender detector implementation | Internal detector contract and sender detector added; architecture documented; `/analyze` and Apps Script unchanged | `pytest -q`: 43 passed, 2 warnings | Review diff; then WBS 2.3 deceptive URL detector |
+| 2026-10-13 | Codex WBS 2.3 URL detector implementation | Internal deceptive URL detector added; checkpoint commits created for WBS 2.1/2.2/docs; `/analyze` and Apps Script unchanged | `pytest -q`: 59 passed, 2 warnings | Review diff; then WBS 2.4 credential context detector |
+| 2026-10-13 | Codex WBS 2.4 credential-context detector implementation | URL boundary tests added and WBS 2.3 committed; internal credential-context detector added; `/analyze` and Apps Script unchanged | `pytest -q`: 84 passed, 2 warnings | Review diff; then WBS 2.5 attachment metadata design |
 
 ## 14. References
 

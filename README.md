@@ -4,7 +4,7 @@ InboxGuardian is a 48-hour Upwind Security home-assignment project: a Gmail Add-
 
 The assignment requires a Google Workspace Gmail Add-on, a backend service the add-on can call, a clear maliciousness score/verdict/reasoning shown to the user, a public source repository, and a live demonstration against a real Gmail account. The full assignment brief is intentionally not published in this repository.
 
-Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. WBS 2.1 safe parsing/normalization and WBS 2.2 backend-internal sender detection are implemented with synthetic tests. The backend still returns `DEMO / NOT ANALYZED`; no real security assessment is exposed through Gmail yet.
+Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. WBS 2.1 safe parsing/normalization, WBS 2.2 sender detection, WBS 2.3 deceptive URL detection, and WBS 2.4 credential-context detection are implemented internally with synthetic tests. The backend still returns `DEMO / NOT ANALYZED`; no real security assessment is exposed through Gmail yet.
 
 ## Scope
 
@@ -197,4 +197,4 @@ Useful official docs:
 
 ## Validation Status
 
-Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Automated tests cover the backend/add-on source contract and the internal parser. Do not claim detection accuracy until real detectors, scoring, fixtures, and evaluation are implemented.
+Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Automated tests cover the backend/add-on source contract, internal parser, and internal detectors. Do not claim detection accuracy until scoring, fixtures, and evaluation are implemented.
