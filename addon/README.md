@@ -1,7 +1,10 @@
 # Add-on Workspace
 
-A Google Apps Script project has been created and a basic `testAccess()` function was executed manually by the project owner.
+This folder is the source of the InboxGuardian Gmail Add-on.
 
-Current files are only the local copy of that basic Apps Script test source and manifest. The Gmail Add-on UI, contextual trigger, message access flow, and backend call are not implemented yet.
+- `Code.js` reads the opened message, calls the backend `/analyze` endpoint with a token from Script Properties, and builds the CardService result dashboard. It contains no detection logic.
+- `appsscript.json` is the manifest: a Gmail contextual trigger and three scopes (run as an add-on, read the current message, make external requests).
+
+The folder is synchronized to an existing Apps Script project with `clasp push`. Setup and the manual checks are described in the root `README.md` and in `docs/gmail-integration-runbook.md`.
 
 Do not commit `.clasp.json` or Google authentication files.

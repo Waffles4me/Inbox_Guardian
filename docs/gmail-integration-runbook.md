@@ -6,7 +6,7 @@ This runbook prepares and verifies the Gmail vertical slice:
 Opened Gmail message -> Gmail Add-on -> FastAPI backend -> real result card
 ```
 
-The current local Apps Script source renders real backend assessments using the existing `/analyze` response schema. Live Gmail verification still requires reviewed `clasp push` and a running HTTPS backend.
+The Apps Script source renders real backend assessments as a modular dashboard using the existing `/analyze` response schema. It is synchronized to the existing Apps Script project and was manually verified in Gmail on 2026-10-13. Any further change to `addon/` needs a reviewed `clasp push`.
 
 ## Current Local State
 
@@ -39,8 +39,10 @@ Invoke-RestMethod `
   -Uri http://127.0.0.1:8000/analyze `
   -Headers @{ "X-InboxGuardian-Token" = $env:INBOXGUARDIAN_API_TOKEN } `
   -ContentType "application/json" `
-  -Body '{"schema_version":"1.0","email":{"subject":"Demo","from":"demo@example.test"}}'
+  -Body '{"schema_version":"1.0","email":{"subject":"Demo","from":"demo@example.test","text_body":"Lunch is at noon."}}'
 ```
+
+This should return `NO_SIGNIFICANT_SIGNALS` with `risk_score` `0`.
 
 ## HTTPS Exposure For Apps Script
 
@@ -62,7 +64,7 @@ Apps Script `UrlFetchApp` does not expose a per-request timeout option. The add-
 
 ## Apps Script Configuration
 
-Do not run these commands until you are ready to synchronize the existing Apps Script project.
+Run these only after reviewing the local changes. Before pushing, pull the remote source into a separate scratch folder and compare it, so unexpected remote edits are not overwritten. Do not use `--force`.
 
 ```powershell
 cd addon
@@ -90,14 +92,14 @@ Do not store these values in Git.
 7. Open InboxGuardian from the Gmail side panel.
 8. Confirm the card shows the subject and sender.
 9. Click **Analyze Email**.
-10. Confirm the result card shows the backend verdict, a heuristic risk index when complete or score unavailable when incomplete, returned findings, limitations and recommended action.
+10. Confirm the result card shows these sections: **Assessment** (verdict, and a risk index with a bar, or `Risk score unavailable` when incomplete), **Key findings**, **Recommended action**, **Analysis coverage** and a collapsed **Additional details**.
+11. If the result does not match what the current code should produce, restart the backend. A FastAPI process started before a code change keeps serving the old behaviour.
 
 ## Expected Failure States
 
 - Missing Script Properties: card reports backend settings are missing.
 - Wrong token: card reports backend authentication failed.
-- Backend/tunnel down: card reports backend unavailable.
+- Backend/tunnel down: card shows an `Analysis unavailable` section saying the backend is unavailable, with no verdict or risk score.
 - Invalid backend JSON: card reports unexpected backend response.
 
-Do not proceed to real phishing detection rules until this live Gmail round-trip works.
-Do not claim live Gmail real-result verification until this updated source has been synchronized and manually tested.
+Manual checks recorded on 2026-10-13 (desktop web Gmail, synthetic messages): benign `0`, credential phishing `25`, multi-signal `60`, empty-body and forwarded `INCOMPLETE`, expandable sections, icons and colours, non-clickable hostnames, and backend unavailable. Dark theme, the mobile app and screen readers were not checked. Evidence is listed in `WBS.md` 2.13 and 3.6.

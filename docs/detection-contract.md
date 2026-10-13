@@ -1,15 +1,15 @@
 # InboxGuardian - Detection Contract
 
 > **Version:** Draft 0.1 - 2026-10-13
-> **Status:** Six-detector scope and **Method C v1 scoring wired to backend `/analyze`**; parser, three core detectors, orchestration, scoring, response mapping and Gmail CardService result rendering exist; live Gmail verification remains pending
+> **Status:** Six-detector scope and **Method C v1 scoring wired to backend `/analyze`**; parser, three core detectors, orchestration, scoring, response mapping and the Gmail CardService dashboard exist, are synchronized to the Apps Script project and were manually verified in Gmail on 2026-10-13
 > **Source of truth:** [`PROJECT_OBJECTIVE.md`](../PROJECT_OBJECTIVE.md) and [`WBS.md`](../WBS.md)
 > **Purpose:** Specify testable evidence, input availability, detector outcomes, scoring semantics, and acceptance criteria without changing the working Gmail integration.
 
-> **Implementation note:** WBS 2.1 parser, WBS 2.2 sender detector, WBS 2.3 URL detector, WBS 2.4 credential-context detector, internal orchestration, Method C v1 scoring, backend response mapping and Gmail CardService result rendering source now exist. The latest automated run passed **151 tests, 2 warnings** on 2026-10-13.
+> **Implementation note:** WBS 2.1 parser, WBS 2.2 sender detector, WBS 2.3 URL detector, WBS 2.4 credential-context detector, internal orchestration, Method C v1 scoring, backend response mapping and Gmail CardService result rendering source now exist. The latest automated run passed **283 tests, 1 warning** on 2026-10-13. Sections below were reconciled with the implementation on that date; where the code changed after a milestone, the change is noted in place.
 
 ## 1. Baseline and change boundary
 
-The **manually verified** flow is Gmail opened message -> Apps Script (`addon/Code.js`) -> ngrok HTTPS -> authenticated FastAPI `POST /analyze` -> Gmail CardService. The backend `/analyze` endpoint returns real parser -> engine -> scorer output in the existing schema. The local Gmail CardService source now renders the backend's real result fields, but this updated source still requires reviewed Apps Script synchronization and manual Gmail verification.
+The **manually verified** flow is Gmail opened message -> Apps Script (`addon/Code.js`) -> ngrok HTTPS -> authenticated FastAPI `POST /analyze` -> Gmail CardService. The backend `/analyze` endpoint returns real parser -> engine -> scorer output in the existing schema. The Gmail CardService source renders the backend's real result fields as a modular dashboard; it has been synchronized to the existing Apps Script project and manually verified in Gmail.
 
 Preserve `POST /analyze`, `GET /health`, `X-InboxGuardian-Token`, Apps Script project, current OAuth scopes, and request/response schema version `1.0` during the initial engine work. Do not deploy or rewrite the Add-on as part of the first parser milestone. Treat any future API/schema, Gmail permission, hosting, or ML dependency change as a separately reviewed decision.
 
@@ -74,11 +74,12 @@ DetectorResult:
   evidence_sources: list[str]   # e.g., from, reply_to, html_body; no raw private content
   limitations: list[str]
   implementation_version: str
+  coverage_gaps: list[str]      # content deliberately not assessed, e.g. forwarded content
 ```
 
 - `TRIGGERED`: at least one specific observed, testable suspicious signal.
 - `NOT_TRIGGERED`: the detector actually ran on sufficient applicable data but found no defined trigger; **not** a guarantee that the message is clean.
-- `INCONCLUSIVE`: attempted but data is malformed, ambiguous, truncated or otherwise insufficient for a meaningful decision.
+- `INCONCLUSIVE`: attempted but data is malformed, ambiguous, truncated or otherwise insufficient for a meaningful decision. **Current scoring behaviour:** an `INCONCLUSIVE` status on its own does not block `NO_SIGNIFICANT_SIGNALS`; only a `coverage_gaps` entry, missing body evidence, a missing sender or a `NOT_RUN` implemented detector does. This differs from the written scoring policy and is an open decision (section 9).
 - `NOT_RUN`: not implemented, disabled, missing required collected fields, or model unavailable; include reason.
 
 These fields are **internal design guidance, not a present API capability**. Preserve external `schema_version: "1.0"` and existing `Finding`/`AnalyzeResponse` until a versioned API change is explicitly accepted. A future response extension for per-detector statuses may be valuable but is not necessary for the first normalization slice.
@@ -100,7 +101,7 @@ The engine intentionally does **not** produce `risk_score`, `verdict`, user-faci
 
 `backend/app/scoring.py` exposes `score_engine_result(result: EngineResult) -> ScoringResult` for internal use. It maps implemented finding IDs to approved Method C v1 weights, deduplicates repeated evidence, reconciles overlapping URL/link and credential-link context, applies family caps, assigns a bounded `0..100` heuristic risk index and returns an internal verdict. It preserves explainable accounting through `ScoredFinding`, `FamilyScore`, coverage assessment, limitations, independent evidence families and a `correlation_bonus` currently fixed at `0`.
 
-The scorer intentionally does **not** serialize public API responses, change `AnalyzeResponse`, wire into `/analyze`, fetch links, execute HTML, retrieve attachments, run NLP, or call external services.
+The scorer intentionally does **not** serialize public API responses, change `AnalyzeResponse`, fetch links, execute HTML, retrieve attachments, run NLP, or call external services. `backend/app/main.py` calls it from `/analyze` and performs the serialization.
 
 ### Findings (existing public fields)
 
@@ -144,7 +145,7 @@ The example contribution of `0` intentionally avoids prematurely agreeing a scor
 
 **Illustrative shape only (not executable or calibrated):** `risk_score = min(100, sum(capped_unique_family_contributions) + justified_distinct_evidence_adjustment)`. Contribution bookkeeping must explain deductions from deduplication, category caps and correlation adjustments without double counting. No specific numerical values are approved by this equation.
 
-**Implemented Method C v1 policy:** approved finding weights, family caps, thresholds, zero correlation bonus and coverage rules are recorded in [`docs/scoring-policy.md`](scoring-policy.md). The scorer is exposed through backend `/analyze`; local Gmail presentation source is adapted pending live verification.
+**Implemented Method C v1 policy:** approved finding weights, family caps, thresholds, zero correlation bonus and coverage rules are recorded in [`docs/scoring-policy.md`](scoring-policy.md). The scorer is exposed through backend `/analyze`, and the Gmail dashboard presents its output.
 
 **Required invariants for the eventual scorer:**
 
@@ -172,7 +173,7 @@ AnalyzeResponse:
   detector_version: str
 ```
 
-The local Gmail card source renders the backend's real verdict, heuristic risk index when complete, score-unavailable state for `INCOMPLETE`, up to four returned findings, limitations and recommended action. If fewer than four meaningful findings exist, it shows fewer and does not fabricate findings. Backend-provided text is escaped before use in CardService HTML-capable widgets. Live Gmail verification is still required after reviewed synchronization.
+The Gmail card is a modular dashboard with these sections: **Assessment** (verdict with a coloured label, a one-line meaning, and the heuristic risk index with a ten-segment text bar; `INCOMPLETE`, unrecognised verdicts and out-of-range scores show `Risk score unavailable` with no number or bar), **Key findings** (backend order, strongest first; three visible and the rest behind the native expand control; never fabricated), **Recommended action**, **Analysis coverage** (the three implemented checks, the backend's statement of planned checks that did not run, and coverage limits specific to the message) and a collapsed **Additional details** section with every remaining limitation. A backend failure shows `Analysis unavailable` with no verdict or score. Backend-provided text is redacted and escaped before use in CardService HTML-capable widgets, and no links or remote images are created. The backend returns findings ordered by contribution and leads the limitations with any incomplete reason, any excluded-content note, and one line naming the planned checks that did not run. This dashboard is synchronized to the Apps Script project and was manually verified in Gmail on the desktop web client.
 
 Expected HTTP behavior should remain: `/health` 200; authenticated well-formed request 200 with validated result; missing/wrong token 401; unconfigured server token 503; invalid input 422; unexpected analysis failures return bounded sanitized HTTP 500 errors rather than successful low-risk assessments or sensitive stack traces. Do not claim that status codes fully describe the operational security posture.
 
@@ -229,7 +230,7 @@ Implemented WBS 2.4 rules in `backend/app/detectors/credentials.py`:
 - `credential_request_with_link`: triggers when credential request language is paired with link evidence. Contribution remains `0`.
 - `credential_security_bypass_instruction`: triggers when the message instructs the recipient to bypass normal security checks or channels. Contribution remains `0`.
 
-The detector uses subject, plain text body, safely extracted visible HTML text and parsed link presence from `ParsedEmail`. It skips structurally identifiable quoted/forwarded content, redacts code-like 4-8 digit values from observations, and treats missing or ambiguous credential-related language as `INCONCLUSIVE`. Urgency alone, normal account-security newsletters, legitimate password-reset/MFA notifications, and generic password mentions do not trigger. It does not perform scoring, sender/link correlation beyond link-presence corroboration, language translation, reputation checks, page fetching, or public `/analyze` output.
+The detector uses subject, plain text body, safely extracted visible HTML text and parsed link presence from `ParsedEmail`. The subject, the plain-text body and the visible HTML text are matched as three separate contexts, so a pattern cannot span from one into another. It skips structurally identifiable quoted/forwarded content and never attributes it to the sender, but reports the skip: a forwarded-message marker in the plain-text body, or a body made only of quoted or header-style lines, is recorded as a coverage gap, and quoted `>` lines next to the sender's own text are recorded as a limitation. The security-bypass rule requires its verb and the security term in the same sentence and ignores matches governed by a nearby negation such as "do not disable MFA". HTML is flattened to one line, so quoted or forwarded content that appears only in HTML is not recognised and is analysed. The detector redacts code-like 4-8 digit values from observations, and treats missing or ambiguous credential-related language as `INCONCLUSIVE`. Urgency alone, normal account-security newsletters, legitimate password-reset/MFA notifications, and generic password mentions do not trigger. It does not perform scoring, sender/link correlation beyond link-presence corroboration, language translation, reputation checks, page fetching, or public `/analyze` output.
 
 ### Internal orchestration milestone
 
@@ -249,11 +250,11 @@ For each implemented rule: one positive synthetic trigger, at least one plausibl
 
 ### Live demonstration gate
 
-A real Gmail account must show a suspicious/high-risk synthetic example, a benign-looking counterexample, and an incomplete/operational-failure state. Document manual outcomes distinctly from automated unit tests. Never use live private messages as publicly committed fixtures.
+A real Gmail account must show a suspicious/high-risk synthetic example, a benign-looking counterexample, and an incomplete/operational-failure state. Document manual outcomes distinctly from automated unit tests. Never use live private messages as publicly committed fixtures. **Status (2026-10-13):** met by user-performed checks with synthetic messages - benign `0`, credential `25`, multi-signal `60`, empty-body and forwarded `INCOMPLETE`, and backend unavailable. Details are in `WBS.md` 2.13 and 3.6.
 
 ## 9. Open decisions requiring explicit approval before public scoring integration
 
-1. **Live Gmail verification:** synchronize reviewed Apps Script source and verify real scored response rendering in the existing CardService interface.
+1. **`INCONCLUSIVE` and the clean verdict:** `docs/scoring-policy.md` makes `NO_SIGNIFICANT_SIGNALS` eligible only when sender identity and at least one body/link-oriented family completed as `NOT_TRIGGERED`. The code does not consult detector statuses for this, so usable content with inconclusive URL and credential checks still receives `NO_SIGNIFICANT_SIGNALS`. Whether to change the code or the policy is undecided. (The earlier item here, live Gmail verification, was completed on 2026-10-13.)
 2. **Attachment availability:** whether/how to collect metadata with existing Gmail scopes, and how to distinguish uncollected from absent, without downloading binaries.
 3. **NLP go/no-go:** available legally usable representative labeled dataset, reproducible training and actual incremental performance; model output may remain informational if evidence is weak.
 4. **Response extension:** whether a later API version needs explicit per-detector statuses, coverage and score-reconciliation fields; do not alter `1.0` without review.
@@ -261,6 +262,6 @@ A real Gmail account must show a suspicious/high-risk synthetic example, a benig
 
 ## 10. First bounded implementation milestone and handoff
 
-**Next Codex task:** after review, synchronize the existing Apps Script project and manually verify the live Gmail -> ngrok -> FastAPI flow with benign, suspicious/high-risk and incomplete synthetic messages. Do not add detector families, new Gmail scopes, model training, deploys or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and manual Gmail evidence. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
+**Milestone status:** the synchronization and manual verification originally listed here as the next task were completed on 2026-10-13; current next steps are in the Session Handoff of `PROJECT_OBJECTIVE.md`. The standing rules remain: do not add detector families, new Gmail scopes, model training, deploys or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and manual Gmail evidence. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
 
-**Gate for this document:** Backend `/analyze` now returns real scored results, but G2 is not complete until Gmail renders them through the existing authenticated flow.
+**Gate for this document:** Backend `/analyze` returns real scored results and Gmail renders them through the existing authenticated flow; G2 is recorded as achieved for the first three-family slice in `WBS.md`.

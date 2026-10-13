@@ -4,7 +4,7 @@
 > **Date:** 2026-10-13
 > **Scope:** Initial scoring specification for the three implemented internal detector families only: sender identity, URL deception and credential context.
 
-This document records the approved deterministic Method C v1 scoring policy implemented in `backend/app/scoring.py`, tested in `tests/unit/test_scoring.py`, and mapped into the backend `/analyze` response by `backend/app/main.py`. It does not change the Gmail UI, public response schema, detector code or authentication behavior; Gmail presentation remains a separate milestone.
+This document records the approved deterministic Method C v1 scoring policy implemented in `backend/app/scoring.py`, tested in `tests/unit/test_scoring.py`, and mapped into the backend `/analyze` response by `backend/app/main.py`. It does not change the public response schema, detector code or authentication behavior. Gmail presentation is implemented separately in `addon/Code.js`.
 
 ## Method C Summary
 
@@ -92,6 +92,18 @@ Use `INCOMPLETE` when the available evidence is insufficient for a meaningful as
 
 Do **not** mark `INCOMPLETE` merely because attachment, financial and NLP families are planned but unimplemented. They should be disclosed as unavailable limitations.
 
+### Implemented coverage rule (2026-10-13)
+
+The conditions above were written as proposals. The scorer currently returns `INCOMPLETE` when:
+
+- An implemented detector is `NOT_RUN` because of an internal failure, at any score.
+- The score is below 20 and the sender could not be parsed.
+- The score is below 20 and there is no body evidence, meaning no non-blank plain text, no visible HTML text and no supported HTTP(S) link. A subject line alone is not body evidence, so empty, whitespace-only and image-only bodies are `INCOMPLETE`.
+- The score is below 20 and a detector reports a coverage gap. The credential detector reports one when the plain-text body carries a forwarded-message marker, or consists only of quoted or header-style lines; that content is skipped and never attributed to the sender.
+- A detector reports `NOT_TRIGGERED` while carrying findings.
+
+A score of 20 or more keeps its `SUSPICIOUS` or `HIGH_RISK` verdict, with the gap listed among the limitations. Findings are returned in every case. Truncation metadata does not exist, so the truncation condition above is not implemented. No weight, cap, bonus or numerical threshold was changed by these rules.
+
 ## Sufficient Coverage for NO_SIGNIFICANT_SIGNALS
 
 `NO_SIGNIFICANT_SIGNALS` is eligible only when:
@@ -103,6 +115,12 @@ Do **not** mark `INCOMPLETE` merely because attachment, financial and NLP famili
 - Inconclusive results, if any, are disclosed and do not affect the checks that did run.
 
 This verdict must be phrased as no significant suspicious signals found, not safe.
+
+### Open discrepancy: `INCONCLUSIVE` statuses (undecided)
+
+The second bullet above is **not** what the code does. The scorer requires a parseable sender and body evidence, but it does not check whether any body/link-oriented detector actually completed as `NOT_TRIGGERED`. A message with usable content whose URL detector is `INCONCLUSIVE` (for example only an unsupported link) and whose credential detector is `INCONCLUSIVE` (ambiguous wording) therefore receives `NO_SIGNIFICANT_SIGNALS`.
+
+This is recorded as an open decision. The approved policy text above has been left as written, and the code has not been changed to match it. Options are to tighten the code, which risks marking ordinary ambiguous notices incomplete, or to amend the policy to describe the evidence-based rule. Neither has been chosen.
 
 ## HIGH_RISK Independence Requirement
 
@@ -135,6 +153,8 @@ Examples that should **not** be enough for high risk by themselves:
 | Malformed or truncated input | Malformed URL or parser issues. | Affected detector `INCONCLUSIVE`; parse issues preserved. | `INCOMPLETE` if meaningful checks cannot run, otherwise `SUSPICIOUS`/`NO_SIGNIFICANT_SIGNALS` with limitations |
 | Unimplemented detector families | No attachment/financial/NLP implementation. | Planned families `NOT_RUN` with explicit limitations. | Does not force `INCOMPLETE` by itself |
 
+This matrix is the design-time intent. Measured per-case behaviour on a separate 30-case labeled synthetic set is in `docs/evaluation-baseline.md`; that set is small and author-written and is not a measure of detection accuracy.
+
 ## Implemented Scorer Interface
 
 `backend/app/scoring.py` exposes:
@@ -148,7 +168,7 @@ The scorer consumes `EngineResult`, not raw `EmailPayload`, and the backend seri
 
 Backend `/analyze` mapping:
 
-- Returns `risk_score`, `verdict`, scored detector findings, limitations, recommended action and `detector_version`.
+- Returns `risk_score`, `verdict`, scored detector findings, limitations, recommended action and `detector_version`. Findings are ordered by effective contribution, strongest first, with ties in detector order. Limitations lead with any incomplete reason, then any excluded-content note, then one line naming the planned checks that did not run.
 - Uses `risk_score: 0` as the required-schema placeholder for `INCOMPLETE`, with an explicit limitation that no meaningful score was produced.
 - Preserves contribution reconciliation for completed assessments by mapping effective scored contributions into public findings.
-- Is rendered by the local Gmail CardService source after the reviewed UI update; live Gmail synchronization and manual verification are still required before claiming deployed real-score display.
+- Is rendered by the Gmail CardService dashboard, which is synchronized to the Apps Script project and was manually verified in Gmail on 2026-10-13.

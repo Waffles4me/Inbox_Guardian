@@ -1,54 +1,61 @@
 # Assignment Checklist
 
-Source reviewed: `UPWIND_HOME_ASSIGNMENT.md`.
+Source reviewed: `UPWIND_HOME_ASSIGNMENT.md` (kept local, never committed).
 
-This checklist maps the Upwind assignment requirements to planned evidence in this repository. It is a compliance guide, not proof that implementation is complete.
+This checklist maps the assignment requirements to evidence in this repository. A checked box means the evidence exists and was verified as described; it is not a claim about how a reviewer will judge it. Status as of 2026-10-13.
 
 ## Objective
 
-- [ ] Build a Gmail Add-on that analyzes an opened email.
-  - Evidence target: `addon/` Apps Script source and live Gmail demo.
-- [ ] Produce a maliciousness score.
-  - Evidence target: backend `/analyze` response contract, scoring docs, tests.
-- [ ] Provide a clear, explainable verdict.
-  - Evidence target: result card in Gmail, backend findings schema, README screenshots/description.
+- [x] Build a Gmail Add-on that analyzes an opened email.
+  - Evidence: `addon/Code.js`, `addon/appsscript.json`; manually verified in a real Gmail account (`WBS.md` 2.13, 3.6).
+- [x] Produce a maliciousness score.
+  - Evidence: backend `/analyze` returns a 0-100 heuristic risk index; `docs/scoring-policy.md`; `tests/unit/test_scoring.py`.
+- [x] Provide a clear, explainable verdict.
+  - Evidence: four verdicts with evidence-backed findings and stated limitations; result dashboard in Gmail; `README.md`.
 
 ## Evaluation Criteria
 
-- [ ] Product thinking: explain chosen MVP scope and omitted features.
-  - Evidence target: `README.md`, `PROJECT_OBJECTIVE.md`, `WBS.md`.
-- [ ] Creativity: show useful signal design beyond generic keyword matching.
-  - Evidence target: detector docs/tests once implemented.
-- [ ] Architecture and design: explain add-on/backend split.
-  - Evidence target: README architecture section and docs.
-- [ ] Code quality: readable source, structure, tests, minimal dependencies.
-  - Evidence target: backend/add-on source, automated tests.
-- [ ] Security awareness: treat email, attachments, and external responses as untrusted.
-  - Evidence target: `docs/security-decisions.md`, validation, request limits, no secrets.
+Evidence that exists for each criterion. The judgement itself belongs to the reviewer.
+
+- [x] Product thinking: explain chosen MVP scope and omitted features.
+  - Evidence: `README.md` (design choices, limitations, roadmap), `PROJECT_OBJECTIVE.md`.
+- [x] Creativity: show useful signal design beyond generic keyword matching.
+  - Evidence: structural URL deception rules, coverage-aware `INCOMPLETE` verdict, per-family caps and independence requirement; `docs/detection-contract.md`.
+- [x] Architecture and design: explain add-on/backend split.
+  - Evidence: `README.md` architecture section; `docs/detection-contract.md`.
+- [x] Code quality: readable source, structure, tests, minimal dependencies.
+  - Evidence: `backend/app/`, `addon/Code.js`, 283 automated tests, three runtime dependencies.
+- [x] Security awareness: treat email, attachments, and external responses as untrusted.
+  - Evidence: `README.md` security section, `docs/security-decisions.md`, input limits, inert parsing, escaped output, no secrets in Git.
 - [ ] Communication: professional root README and interview-ready explanation.
-  - Evidence target: `README.md` and demo runbook.
+  - Evidence: `README.md` is written. Open: a sanitized screenshot and the demonstration rehearsal.
 
 ## Core Task
 
-- [ ] Gmail Add-on is the primary product and first user interaction.
-- [ ] Backend service exists and is called by the add-on.
-- [ ] Add-on displays score, verdict, and reasoning.
-- [ ] Scope/capabilities/signals are intentionally chosen and justified.
+- [x] Gmail Add-on is the primary product and first user interaction.
+- [x] Backend service exists and is called by the add-on.
+- [x] Add-on displays score, verdict, and reasoning.
+- [x] Scope/capabilities/signals are intentionally chosen and justified.
 
 ## Technical Guidelines
 
-- [ ] Use Google Workspace APIs for the Gmail Add-on.
-- [ ] Backend service is runnable and documented.
-- [ ] Solution can be deployed to a real Gmail account and demonstrated live.
-- [ ] Security is first-class: untrusted inputs, secrets, and sensitive data are handled deliberately.
+- [x] Use Google Workspace APIs for the Gmail Add-on.
+  - Evidence: Apps Script CardService, `GmailApp` current-message access, `UrlFetchApp`.
+- [x] Backend service is runnable and documented.
+  - Evidence: `README.md` setup section; commands checked against a local backend.
+- [x] Solution can be deployed to a real Gmail account and demonstrated live.
+  - Evidence: installed as an unpublished test deployment in a real account and manually verified. The live interview demonstration itself is still to come.
+- [x] Security is first-class: untrusted inputs, secrets, and sensitive data are handled deliberately.
 
 ## Deliverables
 
 - [ ] Public Git repository link.
-- [ ] All add-on source code included.
-- [ ] All backend source code included.
+  - The repository exists, but the current local commits have not been pushed. Open until synchronized.
+- [x] All add-on source code included.
+- [x] All backend source code included.
 - [ ] Professional root `README.md`.
-- [ ] README explains what the project does, how to run it, and how to assess decisions.
+  - Written; open until reviewed, committed and published with the repository.
+- [x] README explains what the project does, how to run it, and how to assess decisions.
 
 ## Interview Demonstration
 
@@ -57,6 +64,8 @@ This checklist maps the Upwind assignment requirements to planned evidence in th
 - [ ] Demonstrate the add-on against a real Gmail account.
 - [ ] Discuss trade-offs, limitations, and what would change with more time.
 
+A 3 to 5 minute demo script is in `README.md`. It has not been rehearsed yet.
+
 ## Current Status
 
-The assignment has now been reviewed from `UPWIND_HOME_ASSIGNMENT.md`; WBS 0.1 can be considered complete as a requirements audit. Implementation remains incomplete until the specific evidence items above exist and are verified.
+Implementation, automated tests and manual Gmail verification exist for the three implemented detector families and the result dashboard. Remaining before submission: review and commit the documentation, add a sanitized screenshot, run the publication review, push the repository, and rehearse the demonstration.

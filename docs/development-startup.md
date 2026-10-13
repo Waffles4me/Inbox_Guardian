@@ -8,7 +8,9 @@ Current flow:
 Gmail Add-on -> ngrok HTTPS -> 127.0.0.1:8000 -> FastAPI
 ```
 
-The backend now returns real parser -> detector engine -> Method C scorer results. The Gmail CardService source renders real results after it is synchronized to Apps Script; this local source change still needs live manual verification.
+The backend returns real parser -> detector engine -> Method C scorer results, and the synchronized Gmail CardService dashboard renders them.
+
+**Always restart FastAPI after pulling or changing backend code.** A process started earlier keeps serving the old behaviour, which looks like a wrong result in Gmail.
 
 ## Prerequisites
 
@@ -90,15 +92,18 @@ Expected result:
 Unauthenticated requests should fail:
 
 ```powershell
-Invoke-WebRequest `
-  -Method Post `
-  -Uri http://127.0.0.1:8000/analyze `
-  -ContentType "application/json" `
-  -Body '{"schema_version":"1.0","email":{"subject":"Demo","from":"demo@example.test"}}' `
-  -SkipHttpErrorCheck
+try {
+  Invoke-RestMethod `
+    -Method Post `
+    -Uri http://127.0.0.1:8000/analyze `
+    -ContentType "application/json" `
+    -Body '{"schema_version":"1.0","email":{"subject":"Demo","from":"demo@example.test"}}'
+} catch {
+  "status " + [int]$_.Exception.Response.StatusCode
+}
 ```
 
-Expected status: `401 Unauthorized`.
+Expected output: `status 401`. This form works in Windows PowerShell 5.1 and in PowerShell 7.
 
 Authenticated local check:
 
@@ -108,10 +113,10 @@ Invoke-RestMethod `
   -Uri http://127.0.0.1:8000/analyze `
   -Headers @{ "X-InboxGuardian-Token" = $env:INBOXGUARDIAN_API_TOKEN } `
   -ContentType "application/json" `
-  -Body '{"schema_version":"1.0","email":{"subject":"Demo","from":"demo@example.test"}}'
+  -Body '{"schema_version":"1.0","email":{"subject":"Demo","from":"demo@example.test","text_body":"Lunch is at noon."}}'
 ```
 
-Expected result: a schema `1.0` response with `score_type` set to `heuristic_risk_index_not_probability`. For this minimal example, the verdict may be `NO_SIGNIFICANT_SIGNALS` if enough basic evidence is present or `INCOMPLETE` if the payload is too sparse.
+Expected result: a schema `1.0` response with `score_type` set to `heuristic_risk_index_not_probability`, `verdict` `NO_SIGNIFICANT_SIGNALS` and `risk_score` `0`. Without `text_body` the same request returns `INCOMPLETE`, because a subject alone is not enough to assess.
 
 ## Confirm Apps Script Properties
 
@@ -136,7 +141,7 @@ https://script.google.com/home/projects/1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGb
 3. Open InboxGuardian from the Gmail side panel.
 4. Confirm the card shows the selected email subject and sender.
 5. Click **Analyze Email**.
-6. Confirm the result card displays a verdict, heuristic risk index or score-unavailable state, findings when present, limitations, and recommended action.
+6. Confirm the result card displays the Assessment, Key findings, Recommended action, Analysis coverage and Additional details sections.
 
 This is a manual integration check. It is not covered by automated tests.
 
@@ -157,6 +162,11 @@ Do not leave ngrok running after the demo unless you are actively testing.
 - Confirm FastAPI is bound to `127.0.0.1` on port `8000`.
 - Confirm ngrok was started with `http://127.0.0.1:8000`, not `localhost:8000`.
 - Re-run both `/health` checks.
+
+### Gmail shows a result that does not match the current code
+
+- Restart FastAPI so it loads the latest backend code.
+- Reload Gmail and reopen the message if the card layout looks out of date after a `clasp push`.
 
 ### Gmail reports backend unavailable
 
