@@ -78,6 +78,7 @@ class ParsedHtmlLink:
 @dataclass(frozen=True)
 class ParsedEmail:
     subject: str
+    text_body: str
     from_mailbox: ParsedMailbox
     reply_to_mailbox: ParsedMailbox
     text_urls: tuple[ParsedUrl, ...]
@@ -118,6 +119,7 @@ def parse_email_payload(payload: EmailPayload) -> ParsedEmail:
 
     return ParsedEmail(
         subject=payload.subject,
+        text_body=payload.text_body,
         from_mailbox=from_mailbox,
         reply_to_mailbox=reply_to_mailbox,
         text_urls=tuple(text_urls),
