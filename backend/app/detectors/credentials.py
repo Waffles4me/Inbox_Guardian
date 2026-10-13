@@ -46,6 +46,17 @@ _SECURITY_BYPASS_RE = re.compile(
     r"\b(?:ignore|bypass|disable|turn off)\b[\w\s,.;:'\"/-]{0,60}\b(?:security|mfa|2fa|verification|approval)\b",
     re.IGNORECASE,
 )
+_BYPASS_VERB_RE = re.compile(r"\b(?:ignore|bypass|disable|turn off)\b", re.IGNORECASE)
+_SENTENCE_BREAK_RE = re.compile(r"(?<=[.!?])\s+")
+# A negation shortly before the verb, with no comma or clause break in between, marks a warning such as
+# "do not disable MFA" or "will never ask you to bypass security checks". Double negatives that still
+# urge the action ("don't forget to disable MFA") are not warnings.
+_NEGATED_INSTRUCTION_RE = re.compile(
+    r"\b(?:never|do not|don['’]?t|should not|shouldn['’]?t|must not|mustn['’]?t|will not|won['’]?t"
+    r"|cannot|can['’]?t)\b"
+    r"(?:(?!\b(?:but|however|forget|hesitate|fail|delay|wait|neglect)\b)[\w\s'’/-]){0,25}$",
+    re.IGNORECASE,
+)
 _NORMAL_LOGIN_BYPASS_RE = re.compile(
     r"\b(?:do not|don't|dont|avoid|skip)\b[\w\s,.;:'\"/-]{0,40}\b(?:normal|usual|official)\s+login\s+page\b",
     re.IGNORECASE,
@@ -92,7 +103,7 @@ def detect_credential_phishing_context(parsed_email: ParsedEmail) -> DetectorRes
     credential_request = _first_in_contexts(_find_credential_request, contexts)
     account_verification = _first_in_contexts(lambda text: _find_match(_ACCOUNT_VERIFICATION_RE, text), contexts)
     urgency = any(_URGENCY_RE.search(context) and _THREAT_RE.search(context) for context in contexts)
-    bypass = _first_in_contexts(lambda text: _find_match(_SECURITY_BYPASS_RE, text), contexts)
+    bypass = _first_in_contexts(_find_security_bypass, contexts)
     if not bypass and credential_request:
         bypass = _first_in_contexts(lambda text: _find_match(_NORMAL_LOGIN_BYPASS_RE, text), contexts)
 
@@ -258,6 +269,18 @@ def _find_credential_request(text: str) -> str:
         if _SAFETY_WARNING_RE.search(sentence):
             continue
         return sentence
+    return ""
+
+
+def _find_security_bypass(text: str) -> str:
+    """Return the first sentence that itself instructs the reader to bypass a security control."""
+    for sentence in _SENTENCE_BREAK_RE.split(text):
+        for verb in _BYPASS_VERB_RE.finditer(sentence):
+            if not _SECURITY_BYPASS_RE.match(sentence, verb.start()):
+                continue
+            if _NEGATED_INSTRUCTION_RE.search(sentence[: verb.start()]):
+                continue
+            return sentence.strip()
     return ""
 
 

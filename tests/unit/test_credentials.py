@@ -350,3 +350,84 @@ def test_forwarded_content_stays_ignored_when_html_alternative_repeats_it() -> N
     assert text_only.findings == ()
     assert both.findings == ()
     assert both.status == text_only.status
+
+
+BYPASS_ID = "credential_security_bypass_instruction"
+BENIGN_SECURITY_WORDING = [
+    "You can safely ignore this email. For security, this link expires in 24 hours.",
+    "Do not disable MFA on your account.",
+    "IT will never ask you to bypass security checks.",
+    "If you didn't request this verification code, ignore this message.",
+    "If you didn't request this verification code, ignore this message. Verification codes expire after 10 minutes.",
+    "Never turn off two-step verification.",
+    "If this was not you, ignore this message. Security tip: never reuse passwords.",
+    "We don’t recommend that you turn off security alerts.",
+]
+REAL_BYPASS_INSTRUCTIONS = [
+    "Please disable MFA on your account so we can complete the migration.",
+    "Use this link to bypass the security check and restore access.",
+    "You must ignore the pending account approval and continue with the transfer.",
+    "To avoid errors during the test, turn off two-step verification on your account until tomorrow.",
+]
+MIXED_WARNING_AND_INSTRUCTION = [
+    "We will never ask for your password. However, you must disable MFA today to keep your mailbox.",
+    "Never share your code, but turn off two-step verification before the upgrade.",
+    "Do not disable MFA for anyone else. Now disable security verification on this account to continue.",
+    "Don't worry, just disable security verification for one hour.",
+    "Don't forget to disable MFA before the upgrade tonight.",
+    "Do not hesitate to turn off two-step verification if the prompt appears.",
+]
+
+
+def body_arrangements(text: str) -> list[dict[str, str]]:
+    return [{"text_body": text}, {"html_body": f"<p>{text}</p>"}, {"text_body": text, "html_body": f"<p>{text}</p>"}]
+
+
+@pytest.mark.parametrize("text", BENIGN_SECURITY_WORDING)
+def test_benign_security_wording_is_not_a_bypass_instruction(text: str) -> None:
+    for bodies in body_arrangements(text):
+        assert BYPASS_ID not in finding_ids(result(**bodies))
+
+
+@pytest.mark.parametrize("text", REAL_BYPASS_INSTRUCTIONS)
+def test_real_bypass_instruction_triggers_in_every_body_arrangement(text: str) -> None:
+    for bodies in body_arrangements(text):
+        detector_result = result(**bodies)
+        assert finding_ids(detector_result).count(BYPASS_ID) == 1
+        assert detector_result.status == DetectorStatus.TRIGGERED
+
+
+@pytest.mark.parametrize("text", MIXED_WARNING_AND_INSTRUCTION)
+def test_warning_does_not_hide_a_separate_bypass_instruction(text: str) -> None:
+    for bodies in body_arrangements(text):
+        assert BYPASS_ID in finding_ids(result(**bodies))
+
+
+def test_bypass_observation_quotes_only_the_instruction_sentence() -> None:
+    detector_result = result(
+        text_body="Do not disable MFA for anyone else. Now disable security verification on this account to continue."
+    )
+
+    observation = next(finding.observation for finding in detector_result.findings if finding.id == BYPASS_ID)
+    assert "Now disable security verification" in observation
+    assert "anyone else" not in observation
+
+
+def test_bypass_verb_and_security_term_in_different_sentences_do_not_combine() -> None:
+    detector_result = result(text_body="Please ignore my last email. Security training moves to Monday.")
+
+    assert BYPASS_ID not in finding_ids(detector_result)
+
+
+def test_negated_bypass_wording_keeps_other_credential_findings() -> None:
+    detector_result = result(
+        text_body=(
+            "Do not disable MFA on your account. "
+            "To prevent account suspension, reply to this email with your password immediately."
+        )
+    )
+
+    assert finding_ids(detector_result) == [
+        "credential_secret_collection_request",
+        "credential_urgent_account_threat",
+    ]

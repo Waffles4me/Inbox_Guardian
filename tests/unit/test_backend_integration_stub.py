@@ -485,6 +485,27 @@ def test_duplicate_body_representations_do_not_inflate_contributions(monkeypatch
     assert contribution_by_id(both) == contribution_by_id(text_only)
 
 
+def test_benign_security_notice_wording_is_not_flagged(monkeypatch) -> None:
+    notice = (
+        "We received a request to reset your password. If you did not request this, you can safely ignore this "
+        "email. For security, this link expires in 24 hours. We will never ask you to disable MFA."
+    )
+    body = post_analyze(monkeypatch, subject="Password reset", text_body=notice, html_body=f"<p>{notice}</p>").json()
+
+    assert body["verdict"] == "NO_SIGNIFICANT_SIGNALS"
+    assert body["risk_score"] == 0
+    assert body["findings"] == []
+
+
+def test_real_bypass_instruction_is_still_suspicious(monkeypatch) -> None:
+    instruction = "To avoid errors during the test, turn off two-step verification on your account until tomorrow."
+    body = post_analyze(monkeypatch, text_body=instruction, html_body=f"<p>{instruction}</p>").json()
+
+    assert body["verdict"] == "SUSPICIOUS"
+    assert body["risk_score"] == 20
+    assert contribution_by_id(body) == {"credential_security_bypass_instruction": 20}
+
+
 def test_returned_contributions_reconcile_with_risk_score(monkeypatch) -> None:
     response = post_analyze(
         monkeypatch,
