@@ -1,14 +1,14 @@
-# InboxGuardian — Project Objective & Agent Operating Guide
+﻿# InboxGuardian â€” Project Objective & Agent Operating Guide
 
-> **Status:** Gmail-to-backend integration verified; threat detection pending
-> **Last updated:** 2026-10-12  
-> **Assignment:** Upwind Security — Security Analyst Home Assignment  
-> **Delivery constraint:** 48-hour focused development window, with a working live Gmail demonstration as the primary milestone.  
+> **Status:** Gmail-to-backend integration reconfirmed 2026-10-13; WBS 2.2 sender detector implemented internally; live threat output pending
+> **Last updated:** 2026-10-13
+> **Assignment:** Upwind Security â€” Security Analyst Home Assignment
+> **Delivery constraint:** 48-hour focused development window, with a working live Gmail demonstration as the primary milestone.
 > **Read this file first.** Then read `WBS.md`. Both must remain synchronized.
 
 ## 1. Project in one minute
 
-**InboxGuardian** is a user-friendly, explainable **Gmail Add-on** that analyzes the *currently opened email* on demand and displays a **0–100 heuristic risk score, understandable verdict, concrete evidence, and recommended safe action**. A separate **Python backend** parses the email, runs independent security checks, correlates findings, and returns a structured result. The goal is a convincing, reliable, securely implemented interview demonstration—not an enterprise mail gateway.
+**InboxGuardian** is a user-friendly, explainable **Gmail Add-on** that analyzes the *currently opened email* on demand and displays a **0â€“100 heuristic risk score, understandable verdict, concrete evidence, and recommended safe action**. A separate **Python backend** parses the email, runs independent security checks, correlates findings, and returns a structured result. The goal is a convincing, reliable, securely implemented interview demonstrationâ€”not an enterprise mail gateway.
 
 ### Research question
 
@@ -21,8 +21,9 @@ This question motivates the project; a 48-hour prototype cannot establish genera
 1. **Upwind's supplied assignment** (`UPWIND_HOME_ASSIGNMENT.md`) is authoritative for external requirements.
 2. **This document** defines agreed project scope, implementation constraints, decisions, and session status.
 3. **`WBS.md`** defines ordered implementation work and acceptance gates.
-4. Code and tests show what is actually implemented. Where code diverges from this guide, **report the discrepancy**; do not silently rewrite requirements to fit code.
-5. The local project directory is the development source of truth. GitHub is the remote version-controlled repository once synchronization is verified.
+4. **[`docs/detection-contract.md`](docs/detection-contract.md)** defines the current six-detector target, data/evidence interfaces, unknowns, test gates, and proposed scoring semantics. Numerical weights/thresholds remain open pending review.
+5. Code and tests show what is actually implemented. Where code diverges from this guide, **report the discrepancy**; do not silently rewrite requirements to fit code.
+6. The local project directory is the development source of truth. GitHub is the remote version-controlled repository once synchronization is verified.
 
 The assignment explicitly requires:
 - A **Gmail Add-on**, built with **Google Workspace APIs**, that works on an **opened email**; the add-on is the product users see first.
@@ -32,7 +33,7 @@ The assignment explicitly requires:
 - Deployment to a **real Gmail account** and a **live demonstration** on the developer's own laptop.
 - Explicit attention to product choices, design, code quality, untrusted input, sensitive data, and trade-offs.
 
-Not mandated by Upwind: continuous background monitoring, Chrome extensions, push notifications, machine learning, LLMs, malware sandboxing, production rollout, or arbitrary feature count. **Do not build them in the MVP.**
+Not mandated by Upwind: continuous background monitoring, Chrome extensions, push notifications, LLMs, malware sandboxing, production rollout, or arbitrary feature count. Machine learning is approved only for the scoped NLP-based phishing classifier described below. **Do not build unapproved extras in the MVP.**
 
 ## 3. GitHub Publishing and Confidentiality Rules
 
@@ -51,25 +52,25 @@ These rules are mandatory for every current and future coding agent, including C
 
 ## 4. Product principles (ordered)
 
-1. **Simple for the user:** open Gmail → select InboxGuardian → choose **Analyze this email** → read a score/verdict and short reasons. Show a clear loading/error/incomplete state. Minimize steps and jargon.
+1. **Simple for the user:** open Gmail â†’ select InboxGuardian â†’ choose **Analyze this email** â†’ read a score/verdict and short reasons. Show a clear loading/error/incomplete state. Minimize steps and jargon.
 2. **Meet assignment requirements end to end:** a real contextual Gmail Add-on and separately running backend must work before optional detectors/features.
 3. **Explain every suspicion:** evidence must correspond to an actual observed signal; show what was observed, why it matters, and a safe next step. Avoid unexplained labels, hidden LLM claims, or made-up certainty.
 4. **Security by default:** least-privilege access, safe processing of hostile emails, secured backend, protected secrets, minimal retention, no arbitrary link fetching or executing attachments.
-5. **Honest uncertainty:** unavailable or insufficient signals are **unknown**, not clean. A 0–100 score is a **heuristic risk index, not a probability** unless independently calibrated.
+5. **Honest uncertainty:** unavailable or insufficient signals are **unknown**, not clean. A 0â€“100 score is a **heuristic risk index, not a probability** unless independently calibrated.
 6. **Reliable, demonstrable delivery:** a working narrow vertical slice outranks broad incomplete feature coverage.
 
 ## 5. MVP definition / acceptance criteria
 
-### Must-have — required to claim MVP complete
+### Must-have â€” required to claim MVP complete
 
 - [ ] Newly created **Google Apps Script / Google Workspace Gmail Add-on** installed on a **real test Gmail account**; contextual view for the opened email.
 - [ ] User explicitly initiates analysis via a simple, visible action (or an equally clear contextual user flow); the UI identifies the current email and does not silently scan the whole inbox.
 - [ ] Add-on sends only necessary email fields to a **separate, reachable Python/FastAPI backend** through an authenticated/authorized, HTTPS-protected interface; integration tested live.
-- [ ] Backend validates and safely normalizes inputs and returns a **versioned JSON contract** containing risk index (0–100), verdict, detector evidence, limitations/unknowns, and recommended action.
-- [ ] At least **three independently implemented and unit-tested signal families** (proposed: sender/Reply-To identity anomalies, URL destination/display deception, credential-request/social-engineering context). Prefer a fourth: authentication indicators **only if reliable trustworthy metadata is available**.
+- [ ] Backend validates and safely normalizes inputs and returns a **versioned JSON contract** containing risk index (0â€“100), verdict, detector evidence, limitations/unknowns, and recommended action.
+- [ ] Exactly the **six approved threat detectors** documented below are implemented or explicitly marked as planned: sender impersonation, deceptive URLs, credential-phishing context, suspicious attachments, payment redirection / financial fraud, and NLP-based phishing classification. Do not add standalone SPF/DKIM/DMARC, historical sender profiling, QR/image, malware sandbox, or LLM-based detectors without separate approval.
 - [ ] Conservative deterministic **multi-signal correlation**; neither a single generic keyword nor missing metadata is treated as proof of malice.
 - [ ] User sees one of: **High risk**, **Suspicious**, **No significant suspicious signals found**, or **Unable to assess / Incomplete**; no definitive "safe" designation.
-- [ ] User sees **2–4 plain-language findings**, a way to identify contributing evidence, and a specific safe next action; no automatic opening of suspicious URLs.
+- [ ] User sees **2â€“4 plain-language findings**, a way to identify contributing evidence, and a specific safe next action; no automatic opening of suspicious URLs.
 - [ ] Labeled safe synthetic `.eml`/JSON samples include malicious-looking and benign edge cases; automated tests evaluate both and report a confusion matrix or transparent per-case outcomes, plus known limitations.
 - [ ] Backend never executes attachments, follows untrusted links, or treats message text as instructions. Secrets are outside Git; request validation, size limits, error handling, and sensitive log redaction exist.
 - [ ] Public Git repo contains runnable source, tests, safe config examples, a root `README.md`, architecture sketch, setup instructions, explanation of score, security trade-offs, and demo steps.
@@ -77,29 +78,125 @@ These rules are mandatory for every current and future coding agent, including C
 
 ### Explicitly deferred
 
-- Chrome extension, proactive inbox watcher, Gmail push/Pub/Sub, browser notifications, account-wide scanning, multi-user admin, auto-quarantine, malware sandbox, QR/image OCR, historic sender baseline, production reputation APIs, LLM-based verdicts, statistical calibration claims, Google Marketplace publication.
-- Attachment **metadata-only** signals are optional after the core three detector families; no binary analysis.
+- Chrome extension, proactive inbox watcher, Gmail push/Pub/Sub, browser notifications, account-wide scanning, multi-user admin, auto-quarantine, malware sandbox execution, QR/image OCR, historic sender baseline, production reputation APIs, LLM-based verdicts, statistical calibration claims, Google Marketplace publication.
+- Attachment analysis is limited to **metadata-only** inspection under the approved Suspicious Attachments detector; no binary execution, detonation, macro execution, unpacking, or malware sandboxing.
 
-## 6. Threat scope, interpretations, and scoring design
+## Approved Threat Detection Scope
 
-### Primary threats
+This project has exactly **six approved threat detectors**. As of 2026-10-13, none of these detectors is implemented in production code; the current backend `/analyze` endpoint still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response. The approved scope below is therefore the implementation target for WBS 2 and later validation work, not evidence of completed detection capability.
 
-- **Credential phishing / account takeover attempts:** suspicious credential prompts or login links paired with corroborating context.
-- **Sender/brand impersonation:** identity inconsistencies, misleading Reply-To, or plausible lookalike domains; legitimate third-party senders are an important false-positive case.
-- **Link deception:** mismatched visible/link destination domains, suspicious hostname forms, or credential links inconsistent with claimed sender. The mere presence of a link is not bad.
+The six detectors should share a common evidence model: each finding must include a stable ID, severity, observable evidence, interpretation, contribution to the heuristic risk index, known limitations, and likely benign explanations where relevant.
 
-### Evidence and uncertainty rules
+### 1. Sender Impersonation
 
-- Distinguish an **observation** (e.g. displayed domain differs from link host) from an **inference** (e.g. possible impersonation). Never claim confirmed phishing absent confirmation.
-- Not all headers are trusted: `From` and message-supplied `Authentication-Results` may be forged. Treat SPF/DKIM/DMARC data as authoritative **only** when provenance is established; otherwise omit or flag unknown.
-- Analyze safely without following URLs, resolving unknown hosts unnecessarily, opening attachments, or sending user content to third-party AI/reputation services.
-- Do not assert the risk index equals likelihood. Initial weights/thresholds are **design choices** that must be versioned, justified, and checked against fixture tests. Avoid double counting correlated evidence. Show missing data distinctly from negative findings.
-- Recommended response labels: `HIGH_RISK`, `SUSPICIOUS`, `NO_SIGNIFICANT_SIGNALS`, `INCOMPLETE`. Revisit thresholds based on tests; no fabricated numerical accuracy targets.
-- Limit scope for first version to **English-language body/context heuristics**, while URL and sender structural parsing should not assume ASCII-only inputs. Explicitly document language limitations.
+- **Status:** Approved / planned. Not implemented yet.
+- **Purpose:** Detect suspicious sender identities that may misrepresent an individual, brand, service, or organization.
+- **Threat or attack technique addressed:** Brand impersonation, executive impersonation, supplier impersonation, reply-to redirection, and lookalike-domain social engineering.
+- **Observable indicators:** Display-name and address mismatch, sender name claiming a known service while using an unrelated domain, Reply-To domain different from From domain, visually similar domains, unusual subdomains, and non-obvious free-mail or delegated senders.
+- **Intended implementation approach:** Parse and normalize From and Reply-To safely; compare display names, domains, and organizational hints; check for simple lookalike patterns without making reputation claims; treat legitimate third-party senders, mailing platforms, and delegated senders as important counterexamples.
+- **Expected output:** Evidence-backed findings such as `sender_reply_to_mismatch` or `sender_lookalike_domain`, with the observed fields, why they are suspicious, and a recommended verification action.
+- **Known limitations and potential false positives:** Gmail-provided message fields may be incomplete; some legitimate services use third-party senders or separate reply handling; lookalike detection is heuristic and cannot prove domain ownership or malicious intent.
+
+### 2. Deceptive URLs
+
+- **Status:** Approved / planned. Not implemented yet.
+- **Purpose:** Identify misleading or suspicious hyperlinks without visiting them.
+- **Threat or attack technique addressed:** Link deception, credential-harvesting links, misleading display text, malicious-looking redirects, and suspicious URL construction.
+- **Observable indicators:** Displayed URL or domain differs from destination host, link text claims one brand/domain while `href` points elsewhere, IP-address hosts, suspiciously deep or noisy subdomains, URL shorteners or redirect-looking paths, punycode/unicode lookalikes, and credential-themed paths.
+- **Intended implementation approach:** Safely extract links from text and HTML; normalize URLs and domains; compare visible text, claimed domains, sender domain, and destination host; flag suspicious structures while avoiding the rule that every unfamiliar URL is malicious.
+- **Expected output:** Findings that name the visible text and destination relationship, the structural concern, and the uncertainty around benign tracking, marketing, or outsourced login infrastructure.
+- **Known limitations and potential false positives:** The detector will not fetch, expand, or reputation-check URLs by default; legitimate email platforms often use tracking and redirect domains; unfamiliar domains alone are weak evidence.
+
+### 3. Credential-Phishing Context
+
+- **Status:** Approved / planned. Not implemented yet.
+- **Purpose:** Detect attempts to obtain passwords, login approvals, MFA/OTP codes, or authentication actions.
+- **Threat or attack technique addressed:** Credential phishing, account takeover preparation, MFA fatigue or OTP theft, and urgent fake verification workflows.
+- **Observable indicators:** Requests to enter or reset passwords, verify account access, provide MFA/OTP/security codes, click login or document-access links, act under deadline pressure, avoid normal channels, or ignore prior security warnings.
+- **Intended implementation approach:** Analyze subject and body text with conservative English-language heuristics; require corroborating evidence where possible, such as sender inconsistency, deceptive links, or unusual urgency; avoid treating generic account-security language as conclusive on its own.
+- **Expected output:** Findings that separate the credential-related language observed from the inference that it may be phishing, plus a safe action such as navigating directly to the service.
+- **Known limitations and potential false positives:** Legitimate password resets and security notices often contain similar language; first-version linguistic heuristics are English-focused; context may be missing from shortened email excerpts.
+
+### 4. Suspicious Attachments
+
+- **Status:** Approved / planned. Not implemented yet. Metadata-only analysis is approved; attachment execution or detonation is not.
+- **Purpose:** Inspect attachment metadata for potentially dangerous or misleading file characteristics.
+- **Threat or attack technique addressed:** Attachment-based phishing, malware delivery attempts, misleading file naming, and high-risk document or script delivery.
+- **Observable indicators:** High-risk extensions, double extensions, misleading filenames, archive or executable-like names, macro-enabled document extensions, MIME-type and filename mismatch, unusually large or missing attachment metadata, and attachment claims inconsistent with the message context.
+- **Intended implementation approach:** Analyze only metadata supplied to the backend, such as filename, content type, and size; normalize filenames safely; compare extension and MIME type; never open, execute, unpack, render, or detonate attachment content.
+- **Expected output:** Findings that describe the attachment metadata concern and clearly state that no malware analysis was performed.
+- **Known limitations and potential false positives:** Metadata can be absent, spoofed, or too coarse; many legitimate workflows use archives, invoices, or macro-enabled files; metadata-only inspection cannot determine whether a file is malicious.
+
+### 5. Payment Redirection / Financial Fraud
+
+- **Status:** Approved / planned. Not implemented yet.
+- **Purpose:** Identify suspicious payment requests and attempts to alter financial instructions.
+- **Threat or attack technique addressed:** Business email compromise, invoice fraud, gift-card scams, payroll or bank-detail redirection, and urgent transfer requests.
+- **Observable indicators:** New or changed bank details, urgent wire or transfer instructions, gift-card or cryptocurrency requests, unusual confidentiality instructions, mismatch between sender identity and payment context, invoice/payment language paired with sender or link anomalies, and pressure to bypass normal approval.
+- **Intended implementation approach:** Detect financial-request language and correlate it with sender, URL, attachment, and credential-context evidence; record when historical transaction or communication context is unavailable instead of assuming the request is normal.
+- **Expected output:** Findings that explain the payment-related request, the corroborating anomalies if any, and a recommended out-of-band verification step.
+- **Known limitations and potential false positives:** The system does not have full mailbox history, vendor master data, accounting records, or prior transaction patterns; legitimate finance workflows can be urgent; this detector should be conservative when payment language appears without corroborating evidence.
+
+### 6. NLP-Based Phishing Classification
+
+- **Status:** Approved / planned. Not implemented yet.
+- **Purpose:** Use statistical machine learning to analyze message language and context as a complement to deterministic rules.
+- **Threat or attack technique addressed:** Phishing patterns that are difficult to capture with individual handcrafted rules, especially combinations of tone, request framing, urgency, and credential/payment context.
+- **Observable indicators:** Model features derived from labeled legitimate and phishing examples, initially suggested as TF-IDF text features over subject/body/context plus a logistic regression baseline.
+- **Intended implementation approach:** Train and evaluate on labeled legitimate and phishing examples; report precision, recall, F1-score, and false-positive rate; distinguish raw model scores from calibrated phishing probabilities; only call a score a calibrated probability after separate calibration and validation.
+- **Expected output:** A model finding or supporting score that explains it is statistical evidence, identifies the feature/input scope at a high level, and shows how it complements deterministic findings rather than replacing them.
+- **Known limitations and potential false positives:** Requires enough representative labeled data; may overfit synthetic examples; language/domain drift can degrade performance; raw classifier scores are not inherently probabilities; advanced transformer/LLM-based classification and continuous retraining are out of scope unless separately approved.
+
+## Out of Scope
+
+InboxGuardian intentionally does **not** attempt complete protection against all email-related cyber threats. It is a focused, explainable Gmail Add-on prototype for opened-message analysis, not an enterprise mail gateway, secure email gateway, endpoint security product, or incident-response platform.
+
+### Excluded Detection Capabilities
+
+- **Dedicated SPF/DKIM/DMARC authentication analysis:** Deferred because trusted provenance is hard to guarantee from message-supplied headers alone and may require deeper Gmail/Google infrastructure access. Already available trusted metadata may still be used as supporting evidence when its provenance is clear.
+- **Historical sender behavioral anomaly detection:** Excluded because it requires mailbox history, long-term profiling, storage, privacy governance, and more evaluation data.
+- **QR-code phishing and image-only phishing detection:** Excluded because it requires image extraction/OCR, additional parsing complexity, and separate test data.
+- **Deepfake audio/video analysis:** Excluded because it is outside opened-email text/link/metadata analysis and would require specialized media processing infrastructure.
+- **Full malware analysis or attachment sandbox execution:** Excluded because it requires high-risk binary handling, sandbox infrastructure, and security controls beyond the current project.
+- **Advanced multi-email or conversation-history-based BEC detection:** Excluded because it requires access to threads, prior communications, organizational context, and potentially sensitive historical data.
+- **Zero-day exploit detection:** Excluded because the project does not execute, emulate, or deeply inspect exploit payloads and lacks threat-intelligence infrastructure for novel exploit discovery.
+
+### Excluded Product Capabilities
+
+- **Automatic deletion or quarantine of suspicious emails:** Excluded to avoid destructive user-impacting actions and additional Gmail permissions.
+- **Automatic blocking of senders:** Excluded because sender blocking can cause false-positive harm and requires broader account-level control.
+- **Enterprise-wide mailbox administration and monitoring:** Excluded because the assignment target is a user-initiated Gmail Add-on for the currently opened message, not tenant-wide security operations.
+- **Automated incident response or remediation:** Excluded because reliable remediation needs workflow integration, approvals, audit trails, and operational ownership beyond this prototype.
+- **Guarantees that emails classified as low risk are safe:** Excluded because a low heuristic score only means approved detectors did not find significant suspicious evidence in the available data.
+
+### Excluded or Deferred Advanced Features
+
+- **Advanced transformer/LLM-based phishing classification unless separately approved:** Deferred due to scope control, privacy review, evaluation complexity, and risk of ungrounded explanations.
+- **Continuous retraining of machine-learning models:** Deferred because it requires data pipelines, labeling governance, monitoring, drift detection, and reproducible evaluation.
+- **Full sender-history profiling:** Deferred because it overlaps with historical anomaly detection and has significant privacy and storage implications.
+- **Large-scale threat-intelligence infrastructure:** Deferred because it requires external feeds, reputation systems, operational maintenance, and careful data-sharing controls.
+
+## Detection and Scoring Principles
+
+**Technical contract:** See [`docs/detection-contract.md`](docs/detection-contract.md) for the six approved families, `TRIGGERED`/`NOT_TRIGGERED`/`INCONCLUSIVE`/`NOT_RUN` internal outcome proposal, data collection gaps, evidence accountability and evaluation requirements. Its scoring thresholds and weights are **not yet frozen**. Preserve the current external `schema_version: "1.0"` models during the first parsing milestone.
+
+1. The system combines deterministic analysis and stochastic analysis: five approved deterministic detectors plus one approved NLP-based statistical classifier.
+2. Every warning must be supported by traceable evidence from the email fields or metadata available to the backend.
+3. A suspicious indicator is not automatically proof of malicious activity; explanations must separate observation from inference.
+4. The scoring mechanism must avoid double-counting correlated signals, such as treating the same deceptive login link as multiple independent high-confidence findings without reconciliation.
+5. Risk scores must not be represented as calibrated probabilities without validation. The default `0-100` value is a heuristic risk index.
+6. Missing information must be handled explicitly as unknown, incomplete, or unavailable rather than assumed safe.
+7. User privacy and safe handling of untrusted email content are fundamental requirements: do not execute attachments, follow links, render untrusted HTML as trusted, or send message content to third-party services without explicit approval.
+8. False positives and false negatives must be measured using labeled test cases; do not invent accuracy, precision, recall, or readiness claims.
+9. Detection logic must remain separate from the Gmail add-on UI so backend parsing, detection, scoring, and API serialization can be tested independently.
+10. No detector should be described as production-ready without supporting evaluation evidence.
+11. **Approved scorer architecture (2026-10-13): Method C â€” correlation-aware, category-capped deterministic evidence scoring.** Deduplicate overlapping observations across rules/families, cap each family's credited contribution, and allow correlation increases only for genuinely independent, auditable evidence. A high-confidence standalone indicator may still warrant a warning. NLP classification remains outside the combined heuristic score pending separate evaluation. **Weights, caps, bonuses, evidence-identity logic, coverage requirements, and verdict thresholds are not yet approved or implemented.** See `docs/detection-contract.md`.
+12. Recommended response labels remain `HIGH_RISK`, `SUSPICIOUS`, `NO_SIGNIFICANT_SIGNALS`, and `INCOMPLETE`.
+12. Limit first-version linguistic analysis to English-language body/context heuristics, while URL and sender structural parsing should not assume ASCII-only inputs.
 
 ## 7. Target user experience
 
-**Journey:** Open an email → open InboxGuardian's side panel → click **Analyze this email** → view a succinct card:
+**Journey:** Open an email â†’ open InboxGuardian's side panel â†’ click **Analyze this email** â†’ view a succinct card:
 
 - **Verdict:** High risk / Suspicious / No significant suspicious signals / Incomplete.
 - **Risk index:** e.g. `78/100` (illustrative only); label as heuristic.
@@ -121,7 +218,7 @@ Google Workspace Gmail Add-on (new Apps Script project; CardService)
 Python 3 / FastAPI backend (reachable by Apps Script)
       |
       +-- request validation / size limits / defensive normalization
-      +-- independent sender / URL / phishing-context detectors
+      +-- six approved detectors: sender, URL, credential context, attachment metadata, payment fraud, NLP classifier
       +-- versioned conservative correlation and scoring
       +-- evidence + verdict + recommendation serializer
       v
@@ -132,7 +229,7 @@ Gmail Add-on results card (no external UI required)
 
 **Practical priorities:** preserve the verified proof-of-connectivity while implementing real parsing/detection behind the existing `/analyze` contract. The backend must be reachable from Google's servers: `localhost` alone is not sufficient for live Apps Script integration. The current local development path uses ngrok HTTPS forwarding to `127.0.0.1:8000`; avoid publicly exposing unauthenticated analysis endpoints. Do not rely on Google Cloud verification/public Marketplace launch as part of the 48-hour MVP. Verify any future Gmail scope changes against current Google docs; do not assume access to all inbox content.
 
-### Proposed API contract (draft; freeze before implementation)
+### Existing API envelope and proposed scoring contract (do not change during parser milestone)
 
 `POST /analyze` with bounded, validated JSON:
 
@@ -175,41 +272,93 @@ Response example **for schema illustration, not a real score or detection claim*
 }
 ```
 
-The sample score matches the one illustrated contribution. In implementation, enforce an auditable scoring invariant: every contribution (including correlation contributions) must be enumerated or its reconciliation explained. The example is illustrative and must not become a scoring threshold requirement.
+The sample score matches the one illustrated contribution. In implementation, enforce an auditable scoring invariant: every contribution (including correlation contributions) must be enumerated or its reconciliation explained. **The numerical score, verdict and contribution here illustrate JSON shape only; the example is not a valid approved score/verdict mapping or a scoring threshold requirement.** The authoritative open decisions are tracked in `docs/detection-contract.md`.
 
-**Auth note:** Never send Gmail access tokens as backend authentication by default. Choose an appropriate authenticated Apps Script ↔ backend arrangement, with backend request verification, secret rotation and no committed credentials. Document the residual security trade-offs for a single-user demo.
+**Auth note:** Never send Gmail access tokens as backend authentication by default. Choose an appropriate authenticated Apps Script â†” backend arrangement, with backend request verification, secret rotation and no committed credentials. Document the residual security trade-offs for a single-user demo.
 
-## 9. Proposed repository structure
+## 9. Proposed repository structure and modular backend architecture
 
 ```text
 inboxguardian/
-├── README.md
-├── PROJECT_OBJECTIVE.md             # canonical context, rules, session handoff
-├── WBS.md                           # work packages and gates
-├── addon/
-│   ├── Code.gs                     # Apps Script CardService and API client
-│   └── appsscript.json              # manifest (no secrets)
-├── backend/
-│   ├── app/                          # FastAPI, schemas, validation, engine
-│   │   ├── main.py
-│   │   ├── models.py
-│   │   ├── scoring.py
-│   │   └── detectors/
-│   ├── requirements.txt or pyproject.toml
-│   └── .env.example
-├── tests/
-│   ├── fixtures/                     # safe illustrative emails and labels
-│   ├── unit/
-│   └── integration/
-├── docs/
-│   ├── architecture.md
-│   ├── scoring-policy.md
-│   ├── security-decisions.md
-│   └── demo-runbook.md
-└── .gitignore
+â”œâ”€â”€ README.md
+â”œâ”€â”€ PROJECT_OBJECTIVE.md             # canonical context, rules, session handoff
+â”œâ”€â”€ WBS.md                           # work packages and gates
+â”œâ”€â”€ addon/
+â”‚   â”œâ”€â”€ Code.gs                     # Apps Script CardService and API client
+â”‚   â””â”€â”€ appsscript.json              # manifest (no secrets)
+â”œâ”€â”€ backend/
+â”‚   â”œâ”€â”€ app/                          # FastAPI, schemas, validation, engine
+â”‚   â”‚   â”œâ”€â”€ main.py
+â”‚   â”‚   â”œâ”€â”€ models.py
+â”‚   â”‚   â”œâ”€â”€ scoring.py
+â”‚   â”‚   â””â”€â”€ detectors/
+â”‚   â”œâ”€â”€ requirements.txt or pyproject.toml
+â”‚   â””â”€â”€ .env.example
+â”œâ”€â”€ tests/
+â”‚   â”œâ”€â”€ fixtures/                     # safe illustrative emails and labels
+â”‚   â”œâ”€â”€ unit/
+â”‚   â””â”€â”€ integration/
+â”œâ”€â”€ docs/
+â”‚   â”œâ”€â”€ architecture.md
+â”‚   â”œâ”€â”€ scoring-policy.md
+â”‚   â”œâ”€â”€ security-decisions.md
+â”‚   â””â”€â”€ demo-runbook.md
+â””â”€â”€ .gitignore
 ```
 
 The initial repository can be simpler if justified. Do not create placeholder modules that obscure progress.
+
+### Approved modular architecture
+
+InboxGuardian uses one FastAPI backend process with modular internal components. The six detector families are **not** separate servers or microservices; they run inside the backend process behind the existing authenticated HTTP API.
+
+Target backend structure:
+
+```text
+backend/app/
+|-- main.py                 # Thin FastAPI HTTP/auth layer
+|-- models.py               # Public request/response models
+|-- parsing.py              # Implemented: canonical parsing/normalization
+|-- engine.py               # Future detector orchestration
+|-- scoring.py              # Future Method C scorer
+`-- detectors/
+    |-- __init__.py         # Implemented package marker
+    |-- base.py             # Implemented internal detector contract
+    |-- sender.py           # Implemented WBS 2.2 sender detector
+    |-- urls.py             # Future
+    |-- credentials.py      # Future
+    |-- attachments.py      # Future
+    |-- financial.py        # Future
+    `-- nlp.py              # Future inference module
+```
+
+Testing target:
+
+```text
+tests/unit/
+|-- test_email_parsing.py   # Implemented parser tests
+|-- test_sender.py          # Implemented sender tests
+|-- test_urls.py            # Future
+|-- test_credentials.py     # Future
+|-- test_attachments.py     # Future
+|-- test_financial.py       # Future
+|-- test_nlp.py             # Future
+`-- test_scoring.py         # Future
+```
+
+Responsibilities:
+
+- `parsing.py` normalizes existing validated input and extracts structural evidence. It does not decide maliciousness.
+- `detectors/*.py` implement independent detector logic. Each detector receives normalized data and returns structured internal evidence; detectors do not calculate final email risk.
+- `detectors/base.py` defines the shared internal detector-result contract, statuses, finding shape and evidence conventions.
+- `engine.py` will later orchestrate parser/detector execution and pass evidence to scoring. It is not implemented yet.
+- `scoring.py` will later implement approved Method C: evidence deduplication, detector-family caps, independent-evidence correlation adjustments and final verdict mapping. It is not implemented yet.
+- `main.py` remains the HTTP layer for authentication, validation, endpoint behavior and public response serialization.
+- `addon/Code.js` remains the Gmail-facing UI/client and must not contain backend detection algorithms.
+- Each detector should have independent unit tests for triggering cases, benign counterexamples and inconclusive/missing-data behavior.
+- NLP model training, if approved with suitable data, should be separate from backend inference. The future `detectors/nlp.py` should load/evaluate an approved model, not train during request handling.
+
+Do not create placeholder modules for future detectors merely to match this target tree.
 
 ## 10. Rules for Codex, Claude and other agents
 
@@ -235,7 +384,7 @@ The initial repository can be simpler if justified. Do not create placeholder mo
 - Before pushing to a **public** GitHub repo, run a basic secret/privacy check and ensure sample content is synthetic/authorized. Never publish actual private mail.
 - If internet/Google auth/GitHub deployment actions cannot be performed, report the blocker and provide exact manual steps; do not claim success.
 
-### End-of-session / handoff procedure — REQUIRED
+### End-of-session / handoff procedure â€” REQUIRED
 
 1. Run relevant tests or explicitly record why they could not run; do not check off unverified work.
 2. Update **the Session Handoff section below** with date, summary, files touched, status, decisions, validation evidence, blockers, and precise next actions.
@@ -261,9 +410,12 @@ Any agent proposing changes to approved scope, threat categories, score semantic
 | Existing Apps Script project preservation | **Approved** | Project ID is documented and local source is synchronized with `clasp`; do not recreate it |
 | Opened-email, on-demand Gmail Add-on (not proactive monitor) | **Approved direction** | Upwind assignment requirement and 48-hour limit |
 | FastAPI + Apps Script CardService | **Implemented for integration spike** | Manual Gmail-to-backend flow verified; detection remains pending |
+| Exactly six threat detectors | **Approved / planned** | Five deterministic detectors plus one stochastic NLP classifier; none implemented yet |
 | English-only linguistic heuristics | **Proposed MVP scope** | Limited time; structural signals can work more broadly |
 | Local HTTPS tunnel and demo auth | **Verified for prototype** | ngrok HTTPS to `127.0.0.1:8000`; shared demo token via env var and Script Properties |
-| Scoring weights / thresholds and dataset | **OPEN** | Must be explicit and checked before claims |
+| Detection contract and implementation order | **Drafted 2026-10-13; review pending** | `docs/detection-contract.md`; core three first, then attachment/financial, then separately evaluated NLP |
+| Scoring architecture (Method C) | **APPROVED / NOT IMPLEMENTED** | Category caps + cross-rule evidence deduplication + explainable correlation only with distinct evidence; no automatic NLP vote |
+| Scoring weights / thresholds / coverage / dataset | **OPEN** | Rule weights, caps, evidence identity, correlation adjustments, verdict cutoffs, minimum coverage and ML data require review and tests |
 | Repository URL and live demonstration account | **SET / USER-VERIFIED** | GitHub URL is recorded; real Gmail account add-on verification was reported by the user |
 
 ## 12. External Services and Integrations
@@ -309,19 +461,19 @@ Manual setup needed:
 
 Use [docs/development-startup.md](docs/development-startup.md) to restart the local backend/ngrok development flow, verify `/health`, verify authenticated `/analyze`, confirm Apps Script Properties, open the existing Gmail Add-on, and stop processes manually. This guide preserves the current working implementation and does not create or deploy a new Apps Script project.
 
-## 13. Session Handoff — continuously maintained
+## 13. Session Handoff â€” continuously maintained
 
 > **Agents must replace/update this section at the end of every working session.** Never mark something as deployed, tested or complete without evidence.
 
-- **As of:** 2026-10-12 (Gmail-to-backend integration verified)
-- **Current state:** Gmail-to-backend integration proof of concept is complete. Public GitHub repository URL is known, configured as `origin`, and synchronized on branch `master` before this session's pending commit. The unpublished Gmail Add-on was synchronized with Apps Script using `clasp`, installed/authorized in a real Gmail account, and verified to call local FastAPI through ngrok HTTPS. A dedicated startup guide now documents how to resume the working local backend/ngrok flow. **No real threat detection engine exists yet.**
-- **Completed decisions:** Preserve narrow on-demand Gmail Add-on MVP; Python/FastAPI backend scaffold; `pyproject.toml` dependency management; no committed credentials; `/analyze` remains an `INCOMPLETE` `DEMO / NOT ANALYZED` connectivity response until real detection exists; single-user prototype auth uses `X-InboxGuardian-Token` from environment/Script Properties.
-- **Work completed in this session:** Recorded the end-of-day verified integration checkpoint; added `docs/development-startup.md`; linked the startup guide from README and this objective; clarified manually verified behavior, automated tests, and remaining unverified detection work.
-- **In progress:** Transition from WBS 1 integration spike to WBS 2 detection engine. The working integration path should be preserved while detector logic is added behind the existing contract.
-- **Known blockers / unknowns:** Startup process is documented but not yet automated; scoring thresholds, detector implementation, fixtures, evaluation dataset, and final demo runbook remain open. A future helper script may be useful, but should not print secrets or mutate Apps Script Properties.
-- **Next WBS task:** Begin WBS 2 with threat scope/evidence definitions, canonical email parsing/normalization, first independent detectors, scoring explanations, and synthetic fixtures/tests.
-- **Evidence of tests/deployment:** User reported verified live Gmail flow on 2026-10-12: Gmail -> Apps Script -> ngrok HTTPS -> FastAPI -> JSON response -> Gmail Add-on card; multiple HTTP 200 `/analyze` requests observed in Uvicorn logs. `.\.venv\Scripts\python.exe -m pytest -o cache_dir=.tmp\pytest-cache-current` passed `13 passed, 2 warnings`. No real detection was performed.
-- **Working tree/repository status:** Local branch `master` tracks `origin/master`; changes from this session are pending commit/push until final security checks pass. `UPWIND_HOME_ASSIGNMENT.md` and `addon/.clasp.json` are ignored and not tracked.
+- **As of:** 2026-10-13 (WBS 2.2 sender detector implementation)
+- **Current state:** Gmail-to-backend integration remains preserved: `/analyze` still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response and the Apps Script source/manifest were not modified in this detector task. A backend-internal parser and sender impersonation detector now exist for future orchestration, but no detector output is exposed through Gmail or the public API yet. No scorer, NLP model, or Gmail UI replacement is implemented.
+- **Approved product scope:** Exactly six detection families are planned: sender, URL, credential context, attachment metadata, financial fraud, NLP. Full scope **does not** imply completed implementation. Three original deterministic families are the initial reliable slice; attachment/financial follow, while NLP is evaluated separately before aggregation.
+- **Work completed in this session:** Added `backend/app/detectors/__init__.py`, `backend/app/detectors/base.py`, `backend/app/detectors/sender.py`, and `tests/unit/test_sender.py`; updated architecture and sender-detector documentation in `PROJECT_OBJECTIVE.md`, `WBS.md`, `docs/detection-contract.md`, `README.md`, and `docs/security-decisions.md`.
+- **Scoring decision (2026-10-13):** Method C (correlation-aware, category-capped evidence scoring) approved as architecture **only**. No scoring implementation, weights, caps, bonuses, thresholds, or required evidence coverage approved. NLP remains experimental and excluded from the aggregate until evaluated.
+- **Open decisions:** Final numerical weights, caps, thresholds, scoring evidence keys, correlation/coverage requirements, attachment metadata collection, NLP dataset/evaluation, public-suffix/registered-domain comparison, and possible future API status/truncation extensions. WBS 0.5 remains open until scoring parameters and semantics are approved. Sender detector findings are currently unscored and internal.
+- **Next task:** Start WBS 2.3 deceptive URL detector as a backend-internal detector using parser URL/link output and synthetic tests. Do not wire detection into `/analyze`, alter Gmail UI, implement scoring, collect attachment metadata, or add NLP without a separate authorization.
+- **Validation evidence:** `.\.venv\Scripts\python.exe -m pytest -q` passed 43 tests with 2 warnings on 2026-10-13. The warnings were the existing Starlette/httpx deprecation and pytest cache write warning. New sender coverage added 15 tests.
+- **Git/security handoff:** No commit or push was performed in this session. Before any commit, review the diff and confirm `UPWIND_HOME_ASSIGNMENT.md`, `addon/.clasp.json`, `.env`, credentials, tokens and real email content are not staged or tracked.
 
 ### Session log (append concise entries)
 
@@ -335,10 +487,16 @@ Use [docs/development-startup.md](docs/development-startup.md) to restart the lo
 | 2026-10-12 | Codex local Gmail integration slice | Local Apps Script add-on UI and protected backend demo `/analyze` contract implemented; runbook added | `pytest`: 13 passed; `clasp status` works locally | Approve `clasp push`; configure HTTPS tunnel and Script Properties; live Gmail test |
 | 2026-10-12 | User/Codex verified integration handoff | Live Gmail-to-backend integration status recorded; G1 marked achieved in WBS | User-reported Gmail/ngrok/FastAPI/Uvicorn evidence; `pytest`: 13 passed | Build repeatable startup flow, then start detector pipeline |
 | 2026-10-12 | Codex end-of-day checkpoint | Startup guide added; manual vs automated verification boundaries documented; project handoff refreshed | `pytest`: 13 passed, 2 warnings; assignment/clasp/env files not tracked | Commit/push docs-only checkpoint; start WBS 2 tomorrow |
+| 2026-10-13 | Codex approved detection scope update | `PROJECT_OBJECTIVE.md` updated with six approved detectors, exclusions, and scoring principles | Documentation-only change; no application code modified | Reconcile WBS and define contract |
+| 2026-10-13 | ChatGPT draft documentation reconciliation | Drafted `docs/detection-contract.md`; aligned objective/WBS with six-detector roadmap and staged delivery | Documentation review only; no application tests, Git commit, or push performed | Review unresolved score decisions; apply docs to actual repo; Codex parser-only task |
+| 2026-10-13 | User scoring architecture decision | Approved Method C (category caps, evidence deduplication, only independent corroboration); numerical parameters and coverage remain open | Decision recorded in documentation only; no code/tests/Git changes verified locally | Codex read-only baseline inspection, then WBS 2.1 parsing only |
+| 2026-10-13 | Codex WBS 2.1 parser implementation | Backend-internal parser/normalizer and synthetic parser tests added; docs synchronized; `/analyze` and Apps Script unchanged | `pytest -q`: 28 passed, 2 warnings | Review diff; then WBS 2.2 sender impersonation detector |
+| 2026-10-13 | Codex WBS 2.2 sender detector implementation | Internal detector contract and sender detector added; architecture documented; `/analyze` and Apps Script unchanged | `pytest -q`: 43 passed, 2 warnings | Review diff; then WBS 2.3 deceptive URL detector |
 
 ## 14. References
 
 - Upwind provided assignment: `UPWIND_HOME_ASSIGNMENT.md`; external requirements are described above and mapped in `docs/assignment-checklist.md`.
+- Detection contract and open score decisions: [`docs/detection-contract.md`](docs/detection-contract.md).
 - Original planning input: `Email_Threat_Monitor_WBS.md`; its proactive Chrome extension / push-monitoring assumptions are **superseded for this assignment**.
 - Official Google Workspace guides (verify currency during setup):
   - https://developers.google.com/workspace/add-ons/gmail

@@ -1,9 +1,9 @@
-# InboxGuardian — 48-Hour Upwind Security Assignment WBS
+﻿# InboxGuardian â€” 48-Hour Upwind Security Assignment WBS
 
-> **Project status:** Gmail-to-backend integration verified; threat detection pending
-> **Last updated:** 2026-10-12  
-> **Primary context:** [PROJECT_OBJECTIVE.md](PROJECT_OBJECTIVE.md) — read first.  
-> **Reference:** Upwind Security — *Gmail Add-on: Malicious Email Scorer*.  
+> **Project status:** Gmail-to-backend integration reconfirmed 2026-10-13; parser and sender detector implemented internally; no live detector output yet
+> **Last updated:** 2026-10-13
+> **Primary context:** [PROJECT_OBJECTIVE.md](PROJECT_OBJECTIVE.md) â€” read first. Technical interface and open scoring decisions: [docs/detection-contract.md](docs/detection-contract.md).
+> **Reference:** Upwind Security â€” *Gmail Add-on: Malicious Email Scorer*.
 > **Time constraint:** 48-hour work plan; no phase is considered finished until its acceptance criteria are verified.
 
 ## Research question
@@ -14,7 +14,7 @@
 
 Build **InboxGuardian**, a simple, real Gmail Add-on for analyzing the **currently opened message**, backed by a separate Python analysis service. Present an **explainable heuristic risk score**, a verdict and evidence. The Upwind assignment's Gmail Add-on, backend, repo, documentation and live demonstration requirements are non-negotiable.
 
-**Supersedes the old WBS:** This is **not** a Chrome extension, always-on Gmail threat monitor, automated notifications platform or machine-learning research project. Preserve the independent, tested engine and emphasis on false positives, but defer inbox-wide polling/watch/Pub/Sub, browser extensions, databases, AI analysis and production distribution.
+**Supersedes the old WBS:** This is **not** a Chrome extension, always-on Gmail threat monitor, automated notifications platform or machine-learning research project. Preserve the independent, tested engine and emphasis on false positives, but defer inbox-wide polling/watch/Pub/Sub, browser extensions, databases, LLM/external AI analysis and production distribution. A **local, separately evaluated TF-IDF/logistic regression phishing classifier** is the one approved ML exception, not an excuse to expand into a research platform.
 
 **Product priorities:** (1) Simple Gmail UX, (2) satisfy assignment, (3) observable/evidence-backed suspicions. Explicitly treat incomplete data as unknown and do not treat risk scores as calibrated probabilities.
 
@@ -25,23 +25,25 @@ Estimates are **effort allocation**, not completion guarantees. Work sequentiall
 | WBS | Work package | Budget | Priority | Gate / verified deliverable |
 |---|---|---:|---|---|
 | 0 | Requirements, scope, tools and decisions | 4 h | P0 | G0: agreed MVP, running tools and security boundaries |
-| 1 | **End-to-end Gmail ↔ backend technical spike** | 12 h | P0 | G1: opened email → add-on → backend → results card |
-| 2 | Detection engine and scoring | 12 h | P0 | G2: three deterministic, explained signal families with tests |
+| 1 | **End-to-end Gmail â†” backend technical spike** | 12 h | P0 | G1: opened email â†’ add-on â†’ backend â†’ results card |
+| 2 | Detection engine and scoring | 12 h | P0 | G2: three tested core detectors with explainable score and real Gmail result; additional approved detectors tracked as subsequent increments |
 | 3 | QA, reliability, security and evaluation | 10 h | P0 | G3: passing tests, benign counterexamples, safe data handling |
 | 4 | Public repo, README, deployment and interview demo | 10 h | P0 | G4: reproducible live Gmail demonstration and handoff |
 | 5 | Optional enhancements / post-interview | 0 h reserved | P2 | Only after G4; never jeopardize deliverables |
 | | **Total planned time** | **48 h** | | |
 
-**Integration checkpoint:** If G1 is not working near the end of its planned window, simplify backend response/detection to protect the interview demo. Do **not** continue adding detection complexity until the Google ↔ backend path works. The live flow is required; a CLI-only backend is not an adequate substitute.
+**Scheduling clarification:** Six detector families are approved as target scope, but the original 48-hour effort split is unchanged and **not** a guarantee that all six will be delivered. Get an evidence-backed Gmail result working before optional breadth; record unfinished approved detectors honestly.
+
+**Integration checkpoint:** If G1 is not working near the end of its planned window, simplify backend response/detection to protect the interview demo. Do **not** continue adding detection complexity until the Google â†” backend path works. The live flow is required; a CLI-only backend is not an adequate substitute.
 
 ## 3. Definition of MVP / clear acceptance test
 
 - [ ] Opens in **a real Gmail account**, via a newly configured **Google Workspace Gmail Add-on** (Apps Script + supported CardService UI).
 - [ ] A selected/opened email can be scanned **on demand**, with simple, obvious interaction.
 - [ ] A separately running backend is called successfully over authenticated **HTTPS**.
-- [ ] Displays **0–100 heuristic risk index**, verdict, 2–4 readable evidence explanations and recommended action. Score is not described as a probability.
+- [ ] Displays **0â€“100 heuristic risk index**, verdict, 2â€“4 readable evidence explanations and recommended action. Score is not described as a probability.
 - [ ] Supports `HIGH_RISK`, `SUSPICIOUS`, `NO_SIGNIFICANT_SIGNALS`, and `INCOMPLETE`/scan failure with clear user messages.
-- [ ] Detects at least 3 families: sender identity, deceptive URLs, and credential-phishing context, with conservative multi-signal correlation.
+- [ ] Detects the first **three core families** (sender identity, deceptive URLs, credential-phishing context) with conservative multi-signal correlation; **six are approved as the total target scope**, but remaining detectors must be visibly marked planned/unavailable until actually tested.
 - [ ] Meaningful fixture-based tests include ordinary benign and malicious-looking examples and trace each visible warning to a signal.
 - [ ] Handles missing metadata/failed backend/hostile input without disclosing data or silently labelling email safe.
 - [ ] Public Git repo contains working source, secure setup/config examples, tests and complete README.
@@ -49,13 +51,13 @@ Estimates are **effort allocation**, not completion guarantees. Work sequentiall
 
 ## 4. Detailed checklist and acceptance gates
 
-### 0.0 — Define, prepare, and validate feasibility (4 h, P0)
+### 0.0 â€” Define, prepare, and validate feasibility (4 h, P0)
 
 - [x] **0.1 Requirements audit:** Map each line of the Upwind assignment to concrete implementation/demo/documentation evidence; avoid feature creep. Output: `docs/assignment-checklist.md` or README subsection. **Evidence:** `UPWIND_HOME_ASSIGNMENT.md` reviewed and mapped in `docs/assignment-checklist.md`.
 - [x] **0.2 Confirm product boundaries:** Gmail opened-email analysis only; no automatic inbox monitoring, Chrome UI, LLM, link fetching, malware execution, or automatic quarantine. Record English-language heuristic limitation and optional auth-metadata handling. **Evidence:** `PROJECT_OBJECTIVE.md`, `README.md`, and `docs/security-decisions.md`.
 - [x] **0.3 Development baseline:** Create local project folder and Git repository; verify Python, environment tooling, relevant Google account, and ability to access Apps Script editor. Do **not** assume any Apps Script or Cloud project already exists. **Evidence:** local Git repo, Python virtual environment, FastAPI dependencies, `clasp`, Apps Script access, and real Gmail add-on verification are documented below.
 - [x] **0.4 Document technical choices:** Apps Script / CardService, minimal current-message permission, Python/FastAPI backend, security controls, hosting/HTTPS plan and deployment/test-account prerequisites. Use current official Google docs for manifest/event object/scopes rather than copying old examples unexamined. **Evidence:** `README.md`, `docs/gmail-integration-runbook.md`, `docs/development-startup.md`, and `docs/security-decisions.md`.
-- [ ] **0.5 Lock interface and scoring semantics:** Draft bounded input fields, detector findings, output schema, verdict meaning, unknowns and expected error responses. Ensure every score component can be accounted for. **Partial:** backend request/response models exist, but scoring semantics are not locked.
+- [ ] **0.5 Lock interface and scoring semantics:** **Method C approved as the scoring architecture (2026-10-13)**: capped detector-family contributions, deduplicated underlying evidence, and correlation increases only with genuinely independent corroboration. Review `docs/detection-contract.md` and still approve exact evidence-identity rules, numeric weights/caps/bonuses, verdict boundaries, minimum coverage, and missing-evidence/error semantics. **Partial:** architecture selected, but scoring parameters and coverage **not approved**. Do not mark complete.
 
 **0.3 evidence:** local Git repository initialized; Python 3.14.3, `py -m pip`, Git 2.54.0, VS Code CLI, and `clasp` 3.4.1 are available; `.venv` created and dependencies installed. `pip` is not available as a bare command, but `py -m pip` works. Google account and Apps Script editor access were verified manually by the user; local `.clasp.json` points to the documented Apps Script project ID and `clasp status` works locally.
 
@@ -67,39 +69,43 @@ Estimates are **effort allocation**, not completion guarantees. Work sequentiall
 
 **Gate G0:** Requirements mapped, tech chosen, unknowns logged, task order approved. **Do not overdesign**; the Gmail integration spike is next.
 
-### 1.0 — Working Gmail-to-backend vertical slice (12 h, P0; FIRST BUILD)
+### 1.0 â€” Working Gmail-to-backend vertical slice (12 h, P0; FIRST BUILD)
 
 - [x] **1.1 New Google Apps Script project:** Create from scratch; set up Google Workspace Add-on project/manifest; configure Gmail contextual trigger; write simple CardService homepage/context card and **Analyze this email** button. **Evidence:** user-reported manual verification: local source was synchronized with `clasp`; unpublished add-on installed/authorized in Gmail; card displayed subject/sender and Analyze Email action.
 - [x] **1.2 Minimal message access:** Request only necessary Gmail **current-message read** scope(s) and outbound `UrlFetchApp` scope; retrieve opened message ID/data using supported event token flow; document each permission. Do not assume universal mailbox read access. **Evidence:** manifest uses `gmail.addons.current.message.readonly`, `gmail.addons.execute`, and `script.external_request`; Gmail displayed selected email subject/sender.
 - [x] **1.3 Backend skeleton:** Create FastAPI service with `/health` and `/analyze`; define request and response models, input size constraints, structured safe errors and network timeouts. Make `/analyze` protected, not anonymous. **Evidence:** `/analyze` requires `X-InboxGuardian-Token`; Pydantic bounds bodies/header counts; tests cover success, invalid input, missing fields, auth failures, and oversized body.
 - [x] **1.4 HTTPS endpoint and authentication:** Choose a deployment approach reachable from Apps Script (e.g. controlled HTTPS hosted endpoint or secured development tunnel); store secrets outside committed source; authenticate the add-on-to-backend request; document limits and rotation. **Localhost is not reachable from Apps Script remotely.** **Evidence:** ngrok HTTPS forwarded requests to local FastAPI; token-protected `/analyze` returned 401 without valid token and 200 with valid token.
-- [x] **1.5 First real integration:** A selected email → permitted fields → HTTPS request → stubbed, clearly labelled test JSON result → rendered results Card. Do not confuse a fake demonstration response with validated detection output. **Evidence:** user-reported verified flow Gmail -> Apps Script -> ngrok HTTPS -> FastAPI -> JSON -> Gmail card with `DEMO / NOT ANALYZED`.
+- [x] **1.5 First real integration:** A selected email â†’ permitted fields â†’ HTTPS request â†’ stubbed, clearly labelled test JSON result â†’ rendered results Card. Do not confuse a fake demonstration response with validated detection output. **Evidence:** user-reported verified flow Gmail -> Apps Script -> ngrok HTTPS -> FastAPI -> JSON -> Gmail card with `DEMO / NOT ANALYZED`.
 - [x] **1.6 Real-world failures:** Show helpful states for no selected email, missing consent/permissions, rejected/expired authentication, backend timeout, invalid response and oversized message. **Evidence:** local code/tests cover auth failure, invalid input, missing fields, oversized body, unavailable/unexpected backend states; live happy path verified. Additional live failure drills remain useful but are not blocking G1.
 - [x] **1.7 Validate live account:** Install/test add-on in a real consenting Gmail account, not only Apps Script preview. Verify new-message selection/context and response rendering on demo laptop. **Evidence:** unpublished add-on installed/authorized and tested in a real Gmail account; multiple successful HTTP 200 `/analyze` requests observed in Uvicorn logs.
 
-**Gate G1 — achieved 2026-10-12 by user-reported manual verification:** real opened Gmail message yielded a backend-supplied `DEMO / NOT ANALYZED` result in the add-on through ngrok HTTPS. No real threat detection is implemented.
+**Gate G1 â€” achieved 2026-10-12 by user-reported manual verification:** real opened Gmail message yielded a backend-supplied `DEMO / NOT ANALYZED` result in the add-on through ngrok HTTPS. No real threat detection is implemented.
 
-### 2.0 — Independent multi-signal threat detection engine (12 h, P0)
+### 2.0 â€” Six-family threat detection target (12 h P0 baseline; stage work to protect G2)
 
-- [ ] **2.1 Canonical email representation:** Safe bounded normalization for `From`, `Reply-To`, subject, text/HTML, links, optional verified headers; handle missing/malformed fields, encodings and Unicode hostnames. Do not execute email HTML or retrieve external resources.
-- [ ] **2.2 Sender identity detector:** Test address/Reply-To inconsistencies, obvious lookalikes when grounded; avoid treating legitimate delegated/marketing sends as automatically malicious.
-- [ ] **2.3 URL deception detector:** Extract HTML anchor `href` and visible text safely, compare destination to claimed display/identity, detect misleading URL patterns; **never follow URLs**. Include legit tracking/redirect-style counterexamples.
-- [ ] **2.4 Credential-phishing context detector:** Identify requests for login codes/passwords/account verification combined with other evidence. Urgency or the word "password" alone is weak and not conclusive.
-- [ ] **2.5 Optional authentication detector:** Use SPF/DKIM/DMARC only when trusted provenance can be established with available API/message data; otherwise mark unknown. Optional attachment metadata only if core three families completed.
-- [ ] **2.6 Evidence contract:** Every detector emits stable finding ID, original observation (redacted appropriately), interpretation, severity, and test provenance; no ungrounded explanations.
-- [ ] **2.7 Risk aggregation:** Version explicit rules/weights, threshold mapping, correlation logic and deduplication; avoid double counting overlapping signals; enumerate or explain all score contributions. Missing signals do not reduce risk score as if cleared.
-- [ ] **2.8 Human-friendly result:** 2–4 top findings, contextual action, clear limitations and uncertainty; no "100% malicious", "safe", or probabilistic interpretation unless supported by data.
-- [ ] **2.9 Unit tests:** Positive and benign counterexamples for each detector plus aggregation/boundary cases. Ensure fixtures are synthetic/inert.
-- [ ] **2.10 Integration:** Replace G1's stub result with real engine; verify all four verdict/availability states in actual add-on or via contract tests.
+**Authoritative technical design:** [`docs/detection-contract.md`](docs/detection-contract.md). All six families are **approved/planned, not implemented**. The first three are the core demo milestone. The remaining three are staged enhancements and must not break the known-good Gmail baseline. The 12 h allocation is an initial budget, not evidence that all six can be completed; report scope/time trade-offs rather than marking incomplete work finished.
 
-**Gate G2:** Live Gmail message is evaluated by independent backend detectors and returns explanation-consistent scoring. Three detectors and tests pass. Preserve a working known-good demo branch/commit.
+- [x] **2.1 Canonical email representation:** Safely normalize From, Reply-To, text/HTML and URL evidence with bounded processing and structured missing/malformed/truncated/unknown states. Add synthetic positive and negative parser tests. **Evidence:** `backend/app/parsing.py` and `tests/unit/test_email_parsing.py`; `pytest -q` passed 28 tests with 2 warnings on 2026-10-13. `/analyze` demo behavior and Apps Script integration were not changed.
+- [x] **2.2 Sender impersonation detector:** Explain actual mismatches/lookalikes with evidence, check legitimate delegation/marketing counterexamples and missing identity. **Evidence:** `backend/app/detectors/base.py`, `backend/app/detectors/sender.py`, and `tests/unit/test_sender.py`; `pytest -q` passed 43 tests with 2 warnings on 2026-10-13. Findings are internal, unscored (`contribution=0`), and not wired into `/analyze`.
+- [ ] **2.3 Deceptive URL detector:** Parse inert HTML anchors and text URLs, compare claimed versus actual hosts, bound input and never follow links; test legitimate tracking URLs.
+- [ ] **2.4 Credential-phishing context detector:** Detect requests for passwords/OTP/account verification with appropriate corroboration and legitimate-reset counterexamples; English-focused.
+- [ ] **2.5 Suspicious attachment metadata detector (approved, later):** Verify safe Gmail metadata collection and missing-vs-empty semantics first; then inspect extensions, double extensions, declared MIME and size without retrieving or executing binary content.
+- [ ] **2.6 Payment redirection / financial fraud detector (approved, later):** Detect contextual payment-change/transfer requests with independent supporting evidence; explicitly disclaim lack of historical vendor, payment or thread context.
+- [ ] **2.7 NLP phishing classifier (approved, separate experimental increment):** Establish usable labeled data, licensing/provenance, leakage-resistant evaluation and TF-IDF/logistic regression baseline; report precision, recall, F1, false-positive rate and limitations. **Do not add model score to heuristic aggregation until an evidence-backed integration decision is approved.**
+- [ ] **2.8 Evidence and detector-status contract:** Stable IDs, `TRIGGERED` / `NOT_TRIGGERED` / `INCONCLUSIVE` / `NOT_RUN` internal outcomes, observed and redacted evidence, uncertainty/limitations; preserve `schema_version: 1.0` public API unless explicitly reviewed.
+- [ ] **2.9 Risk scoring policy:** Implement **approved Method C architecture** after parser/detector evidence is verified: family caps, cross-detector evidence deduplication, auditable independent corroboration, score limits, thresholds, coverage rules and `INCOMPLETE`. **Numerical parameters remain open**. ML output is not a calibrated probability or an automatic weighted vote.
+- [ ] **2.10 Human-friendly backend result:** Return meaningful finding titles/observations/interpretations, 0â€“100 heuristic risk index only where assessment is meaningful, verdict, limitations and safe recommended action.
+- [ ] **2.11 Automated synthetic tests:** For each implemented detector, positive triggers, plausible benign counterexamples, ambiguous/missing data, dedup/correlation and API regression coverage. Keep the previously reported 13 baseline tests passing except consciously updated demo assertions when live detection replaces stub.
+- [ ] **2.12 Gmail integration:** In a separate reviewed change, replace stub response and hardcoded demo UI; show real score/verdict/evidence via existing CardService route, test real selected Gmail messages, preserve authentication and privacy.
 
-### 3.0 — Evaluation, usability, security and resilience (10 h, P0)
+**Gate G2 (first demonstrable slice):** Real Gmail email is analyzed by **three independently tested core detectors**; backend returns a defensible, traceable heuristic score and Gmail renders the result. Capture manual vs automated verification separately. Approved attachment/financial/NLP work remains openly pending until its own verified acceptance evidence exists. Do not claim the six-detector target is fully delivered if only three work.
 
-- [ ] **3.1 Fixture corpus:** Version a compact, documented labeled set of synthetic examples: spoof/lookalike, misleading login link, suspicious request, legitimate password-reset notification, marketing sender, benign link and insufficient-information sample. Labels and rationale included.
-- [ ] **3.2 Test protocol:** Separate examples used to tune scoring from held-out examples where feasible; run baseline simple heuristics versus correlated multi-signal logic only if credible. No fabricated performance metrics or universal accuracy claims.
+### 3.0 â€” Evaluation, usability, security and resilience (10 h, P0)
+
+- [ ] **3.1 Fixture corpus:** Version a compact, documented labeled set of synthetic examples: spoof/lookalike, misleading login link, suspicious request, legitimate password-reset notification, marketing sender, benign link and insufficient-information sample; add attachment/payment positives and legitimate counterexamples when those detectors are implemented. Labels and rationale included.
+- [ ] **3.2 Test protocol:** Separate examples used to tune scoring from held-out examples where feasible; if NLP is implemented, document corpus provenance and prevent train/test leakage. Run baseline simple heuristics versus correlated multi-signal logic only if credible. No fabricated performance metrics or universal accuracy claims.
 - [ ] **3.3 Evaluation report:** Record confusion matrix or individually verified labeled results; note false positives, false negatives, incomplete scans, qualitative latency and dataset limits. If dataset too small for meaningful statistics, say so.
-- [ ] **3.4 Security tests:** Oversized/hostile HTML, malformed URL, tricky Unicode, missing sender/header, encoded input, backend auth failure, command/prompt-like text in body, request-size limits and sanitized error/log messages.
+- [ ] **3.4 Security tests:** Oversized/hostile HTML, malformed URL, tricky Unicode, missing sender/header, encoded input, backend auth failure, command/prompt-like text in body, request-size limits, suspicious attachment names/metadata (when collected), and sanitized error/log messages.
 - [ ] **3.5 Privacy controls:** Do not persist full messages by default; minimize uploaded fields; ensure no raw email or token in public repo, analytics, screenshots or logs. Verify handling of API credentials and HTTPS.
 - [ ] **3.6 Gmail UX review:** Quick path from message to result; readable labels, no unnecessary fields, concise explanation, obvious unknown vs clean states, accessible text and error recovery.
 - [ ] **3.7 End-to-end smoke tests:** Run at least one high-risk case, one benign case, one incomplete case and one backend-unavailable case in the real add-on; report observations.
@@ -107,22 +113,22 @@ Estimates are **effort allocation**, not completion guarantees. Work sequentiall
 
 **Gate G3:** Evidence-backed findings and clear UX hold up under realistic benign cases and failure modes. Security-critical omissions are documented; don't claim full production safety.
 
-### 4.0 — Public deliverables and interview readiness (10 h, P0)
+### 4.0 â€” Public deliverables and interview readiness (10 h, P0)
 
 - [ ] **4.1 README (critical assignment deliverable):** Overview, feature scope, annotated screenshot (no private mail), architecture/data flow, environment, Google Apps Script manifest setup, necessary scopes, backend deployment/setup, demo use, scoring policy, tests/results, threats/mitigations, known gaps and roadmap.
 - [x] **4.2 Version control hygiene:** `.gitignore`, `.env.example`, no credential dumps, no actual inbox content, dependencies pinned/documented. Run secret scan/manual diff before first public push. **Evidence:** `.gitignore` excludes secrets, local auth files, temp/cache files, and `UPWIND_HOME_ASSIGNMENT.md`; staged-file review and secret scan passed before first push.
 - [x] **4.3 Publish public Git repository:** Include both `PROJECT_OBJECTIVE.md` and `WBS.md`, complete add-on/backend source, tests and docs; verify link is accessible and branch matches working demo. **Evidence:** pushed to `origin/master`; `git ls-remote --heads origin` verified remote branch. `UPWIND_HOME_ASSIGNMENT.md` is absent from the remote tree.
 - [ ] **4.4 Runbook:** Set up Gmail add-on from scratch on demo account, start/verify backend, test endpoint, open known-safe synthetic emails, demonstrate high-risk/benign and a limitation, recover from backend outage. **Partial:** `docs/development-startup.md` now covers local backend/ngrok startup, health/auth verification, Apps Script Property checks, opening the existing add-on, shutdown, and troubleshooting. Final demo runbook still needs real detector cases and recovery rehearsal.
-- [ ] **4.5 Rehearse demonstration:** 3–5 minutes: user journey → score/verdict → evidence → architecture → false-positive safeguards → security boundaries → limitations; prepare fallback screenshots only as backup, not as replacement for live functioning.
+- [ ] **4.5 Rehearse demonstration:** 3â€“5 minutes: user journey â†’ score/verdict â†’ evidence â†’ architecture â†’ false-positive safeguards â†’ security boundaries â†’ limitations; prepare fallback screenshots only as backup, not as replacement for live functioning.
 - [ ] **4.6 Upwind compliance audit:** Check required Add-on, backend, real Gmail, public repo, README and explanation against the original PDF; record any unmet requirement honestly.
 - [ ] **4.7 Final handoff:** Update the objective's Session Handoff and this WBS with actual completed tasks, test evidence, deployment addresses/IDs that are **not secrets**, known defects and next actions.
 
-**Gate G4 — deliverable ready:** Public repo with complete reproducible instructions; real Gmail Add-on + backend live demo; explainable signal analysis with honest limitations. Project complete only if evidence is verified.
+**Gate G4 â€” deliverable ready:** Public repo with complete reproducible instructions; real Gmail Add-on + backend live demo; explainable signal analysis with honest limitations. Project complete only if evidence is verified.
 
-### 5.0 — Post-MVP backlog (P2; zero hours allocated)
+### 5.0 â€” Post-MVP backlog (P2; zero hours allocated)
 
 - [ ] **5.1** Calibrate risk score using a larger legitimately labeled corpus, report precision/recall with uncertainty and operational base-rate sensitivity.
-- [ ] **5.2** Improved trusted authentication-result analysis, domain reputation checks (subject to security/privacy review), attachment metadata.
+- [ ] **5.2** Improved trusted authentication-result analysis and domain reputation checks (subject to security/privacy review); enhanced attachment inspection beyond approved metadata-only scope remains deferred.
 - [ ] **5.3** Hebrew/multilingual context, image/QR phishing analysis, historical sender anomalies/BEC signals.
 - [ ] **5.4** Feedback workflow and audit history with explicit retention/privacy governance.
 - [ ] **5.5** **Original project direction:** Proactive Gmail watch, Pub/Sub ingestion, deduplicated alerts and optional Chrome extension; separate new project phase, not necessary for Upwind.
@@ -131,33 +137,33 @@ Estimates are **effort allocation**, not completion guarantees. Work sequentiall
 
 ```text
 G0: requirements + new Google environment plan
-  ↓
-G1: REAL GMAIL ADD-ON ↔ AUTHENTICATED HTTPS BACKEND ↔ CARD RESPONSE
-  ↓
+  â†“
+G1: REAL GMAIL ADD-ON â†” AUTHENTICATED HTTPS BACKEND â†” CARD RESPONSE
+  â†“
 G2: real multi-signal engine + deterministic score + evidence + tests
-  ↓
+  â†“
 G3: threat/benign tests + security + simple UX + graceful failures
-  ↓
+  â†“
 G4: public Git repo + README + rehearsed live interview demo
 ```
 
-**Priority hierarchy if delayed:** (1) working Gmail Add-on + backend, (2) score/verdict/evidence, (3) three detectors/test cases, (4) polished UX/security/docs, (5) optional features. Do not cut mandatory repository/README or essential security controls to create flashy extras.
+**Priority hierarchy if delayed:** (1) working Gmail Add-on + backend, (2) score/verdict/evidence, (3) three tested core detectors, (4) security/docs/live demo, (5) two more approved deterministic families, (6) approved NLP experiment if credible labeled data exists. All undelivered approved families remain marked planned; no misleading completion claims. Do not cut mandatory repository/README or essential security controls to create flashy extras.
 
 ## 6. Suggested repo structure
 
 ```text
 inboxguardian/
-├── PROJECT_OBJECTIVE.md
-├── WBS.md
-├── README.md
-├── addon/                  # New Google Apps Script project source and manifest
-├── backend/app/            # FastAPI schemas, parsers, detectors, scoring
-├── tests/fixtures/         # Safe, labeled, synthetic emails
-├── tests/unit/
-├── tests/integration/
-├── docs/                   # Architecture, scoring, decisions, security, demo
-├── .env.example            # Examples only, never real keys
-└── .gitignore
+â”œâ”€â”€ PROJECT_OBJECTIVE.md
+â”œâ”€â”€ WBS.md
+â”œâ”€â”€ README.md
+â”œâ”€â”€ addon/                  # New Google Apps Script project source and manifest
+â”œâ”€â”€ backend/app/            # FastAPI schemas, parsers, detectors, scoring
+â”œâ”€â”€ tests/fixtures/         # Safe, labeled, synthetic emails
+â”œâ”€â”€ tests/unit/
+â”œâ”€â”€ tests/integration/
+â”œâ”€â”€ docs/                   # Detection contract, architecture, scoring, decisions, security, demo
+â”œâ”€â”€ .env.example            # Examples only, never real keys
+â””â”€â”€ .gitignore
 ```
 
 ## 7. Agent usage and checklist discipline
@@ -171,14 +177,21 @@ inboxguardian/
 
 ## 8. Current state / next actions
 
-**As of 2026-10-12:** Gmail-to-backend integration proof of concept is complete. `UPWIND_HOME_ASSIGNMENT.md` has been reviewed and mapped to `docs/assignment-checklist.md`, but permanent policy forbids committing or pushing that assignment file. Local Git repository, FastAPI backend, Apps Script add-on source, README, `.gitignore`, `.env.example`, docs, and tests exist. Public GitHub repo is reachable, configured as `origin`, and synchronized on branch `master`. The unpublished Gmail Add-on was synchronized with `clasp`, installed/authorized, and verified in a real Gmail account through ngrok HTTPS to local FastAPI. `/health` was manually verified locally and through ngrok; unauthenticated `/analyze` returned 401; authenticated Gmail-originated `/analyze` requests returned 200 and displayed `DEMO / NOT ANALYZED`. Automated tests cover backend and add-on source contracts, not live Gmail behavior. No real threat detection engine is implemented.
+**As of 2026-10-13:** Gmail-to-backend integration proof of concept is complete and manually reconfirmed on 2026-10-13. `UPWIND_HOME_ASSIGNMENT.md` has been reviewed and mapped to `docs/assignment-checklist.md`, but permanent policy forbids committing or pushing that assignment file. Local Git repository, FastAPI backend, Apps Script add-on source, README, `.gitignore`, `.env.example`, docs, and tests exist. Public GitHub repo is reachable, configured as `origin`, and synchronized on branch `master`. The unpublished Gmail Add-on was synchronized with `clasp`, installed/authorized, and verified in a real Gmail account through ngrok HTTPS to local FastAPI. `/health` was manually verified locally and through ngrok; unauthenticated `/analyze` returned 401; authenticated Gmail-originated `/analyze` requests returned 200 and displayed `DEMO / NOT ANALYZED`. Automated tests cover backend and add-on source contracts, not live Gmail behavior. No real threat detection engine is implemented.
 
-**Next session:** Begin WBS 2: define threat scope and evidence types, implement safe email parsing/normalization, add the first independent detectors, define risk scoring/explanations, and create synthetic fixtures/tests. Preserve the working Gmail integration while replacing the demo response gradually.
+**Documentation reconciliation (2026-10-13):** Six families are approved in `PROJECT_OBJECTIVE.md` and `docs/detection-contract.md`: sender identity, deceptive URLs, credential context, suspicious attachment metadata, financial fraud, and NLP classifier. **Method C correlation-aware, category-capped scoring architecture is approved, but not implemented**. The contract is still a **draft**; scoring weights, caps, correlation bonuses, threshold cutoffs, minimum coverage, metadata availability and NLP dataset remain undecided. No detector code was implemented. User reconfirmed local/tunneled `/health`, 401 unauthenticated `/analyze`, authenticated demo response and Gmail demo result. The earlier automated baseline was **reported** as 13 passed, 2 warnings; no tests were rerun in this documentation edit. Local Git state and remote sync following these new documents are **not verified**.
+
+**WBS 2.1 implementation (2026-10-13):** Safe backend-internal parser/normalizer added in `backend/app/parsing.py` with synthetic tests in `tests/unit/test_email_parsing.py`. It parses From/Reply-To into explicit statuses, extracts inert visible HTML text and anchors, parses text/HTML HTTP(S) URL structure, retains unsupported/malformed link evidence, normalizes IDNA hostnames, redacts query/fragment from display-safe URL forms, deduplicates exact canonical URL evidence, and enforces documented bounds. It is not wired into `/analyze`; the Gmail demo output remains `DEMO / NOT ANALYZED`.
+
+**WBS 2.2 implementation (2026-10-13):** Added the backend-internal detector package with a shared result contract and sender detector. Implemented conservative rules for unrelated From/Reply-To domain differences and explicit display-name domain claim mismatches. Missing or malformed identity data returns `INCONCLUSIVE`; matching domains, missing Reply-To, display-name/local-part differences, and conservative same/subdomain relationships do not trigger. Findings remain unscored and are not exposed through `/analyze`.
+
+**Next session/task:** Start WBS 2.3 deceptive URL detector as a backend-internal detector using parser URL/link output and synthetic positive/benign/missing-field tests. Do not implement scoring, Gmail UI changes, attachment collection, NLP, or `/analyze` replacement until separately authorized.
 
 ## 9. References and design provenance
 
-**Assignment (user-supplied):** `UPWIND_HOME_ASSIGNMENT.md`.  
-**Original planning baseline:** `Email_Threat_Monitor_WBS.md`, revised/superseded here to reflect the interviewer-facing Gmail Add-on instead of proactive monitoring.  
+**Assignment (user-supplied):** `UPWIND_HOME_ASSIGNMENT.md`.
+**Technical scope and score decisions:** [`docs/detection-contract.md`](docs/detection-contract.md).
+**Original planning baseline:** `Email_Threat_Monitor_WBS.md`, revised/superseded here to reflect the interviewer-facing Gmail Add-on instead of proactive monitoring.
 **Official guides to validate against while building:**
 - https://developers.google.com/workspace/add-ons/gmail
 - https://developers.google.com/workspace/add-ons/gmail/extending-message-ui

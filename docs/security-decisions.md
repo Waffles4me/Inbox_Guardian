@@ -6,8 +6,11 @@
 - Do not scan the full inbox in the MVP.
 - Do not execute attachments.
 - Do not follow links from emails during analysis.
+- Safe parser normalization may extract mailbox fields, visible HTML text, HTML anchors, and HTTP(S) URL structure as inert data only.
+- Sender detection may compare parsed From/Reply-To domains and explicit domain claims in display names, but must not make authentication, reputation, ownership, or confirmed impersonation claims.
 - Do not commit secrets, Gmail tokens, private email content, or production `.env` files.
 - Treat the risk score as a heuristic index, not a calibrated probability.
+- Method C is the approved future scoring architecture: deduplicate overlapping evidence, cap detector-family contributions, and allow correlation adjustments only for genuinely independent evidence.
 - Use a shared demo token in the `X-InboxGuardian-Token` header for the first single-user Apps Script-to-backend prototype.
 - Store the backend URL and demo token outside Git: backend environment variables locally, Apps Script Properties remotely.
 - The current backend response is `DEMO / NOT ANALYZED` and must not be presented as a real security assessment.
@@ -19,10 +22,13 @@
 - HTTPS tunnel for Apps Script to reach the backend: ngrok was manually verified.
 - Manifest scopes for current-message read and external requests were sufficient for the verified Gmail flow.
 - Request size limits exist for message body, HTML, headers, and attachment metadata in the backend model.
+- WBS 2.1 parser limits are explicit: at most 50 plain-text URLs and 50 HTML links are retained per source, individual URLs over 2,048 characters are marked malformed, and visible HTML text output is capped at 20,000 characters.
+- WBS 2.2 sender findings are internal and unscored. The first sender detector treats unrelated Reply-To domains as low-severity supporting evidence, handles missing/malformed identity as inconclusive, and uses conservative same/subdomain handling to reduce false positives.
 
 ## Still Open
 
 - Rotation/replacement plan for the demo token if the project becomes more than a single-user prototype.
-- Sensitive logging and redaction rules.
+- Sensitive logging and redaction rules for future detector findings and operational logs.
 - Whether Gmail authentication metadata is available with trustworthy provenance.
-- Final scoring policy and detector evidence schema.
+- Final Method C numeric scoring policy, detector evidence schema, and minimum coverage rules.
+- Whether to add a public-suffix/registered-domain library for more precise domain relationship checks.

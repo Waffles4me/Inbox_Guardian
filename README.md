@@ -4,15 +4,17 @@ InboxGuardian is a 48-hour Upwind Security home-assignment project: a Gmail Add-
 
 The assignment requires a Google Workspace Gmail Add-on, a backend service the add-on can call, a clear maliciousness score/verdict/reasoning shown to the user, a public source repository, and a live demonstration against a real Gmail account. The full assignment brief is intentionally not published in this repository.
 
-Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. The backend still returns `DEMO / NOT ANALYZED`; there is no real threat detection engine yet.
+Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. WBS 2.1 safe parsing/normalization and WBS 2.2 backend-internal sender detection are implemented with synthetic tests. The backend still returns `DEMO / NOT ANALYZED`; no real security assessment is exposed through Gmail yet.
 
 ## Scope
 
 - Gmail Add-on for an opened message, not inbox-wide monitoring.
 - Separate Python/FastAPI backend.
-- Option B: deterministic, explainable multi-signal analysis using sender identity, URL deception, and credential-phishing context signals once detection is implemented.
+- Option B: explainable multi-signal analysis. Six detector families are approved as planned scope: sender identity, URL deception, credential-phishing context, suspicious attachment metadata, payment redirection / financial fraud, and separately evaluated NLP phishing classification.
+- Method C is the approved future scoring architecture: evidence deduplication, per-family caps, and correlation only for genuinely independent evidence. Exact weights, caps, thresholds, bonuses, and minimum coverage remain undecided.
 - Explainable 0-100 heuristic risk index, verdict, evidence, limitations, and recommended action.
 - No LLM analysis, malware execution, URL fetching, auto-quarantine, or background scanning in the MVP.
+- Implemented detector findings are currently internal and unscored; they are not connected to `/analyze` or the Gmail UI.
 
 ## Repository Layout
 
@@ -189,10 +191,10 @@ Useful official docs:
 
 - Whether to add a small local startup helper after the manual startup flow remains stable.
 - Add-on-to-backend authentication rotation/replacement if the project grows beyond a single-user prototype.
-- Request size limits and redaction policy for logs/errors.
-- Final versioned `/analyze` contract and scoring semantics.
+- Sensitive logging/redaction rules for future detector output.
+- Final scoring parameters for Method C: rule weights, per-family caps, thresholds, correlation bonuses, and minimum evidence coverage.
 - Whether authentication metadata can be trusted from available Gmail/Add-on data.
 
 ## Validation Status
 
-Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Current automated tests pass for the backend/add-on source contract. Do not claim detection accuracy until real detectors, fixtures, and evaluation are implemented.
+Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Automated tests cover the backend/add-on source contract and the internal parser. Do not claim detection accuracy until real detectors, scoring, fixtures, and evaluation are implemented.
