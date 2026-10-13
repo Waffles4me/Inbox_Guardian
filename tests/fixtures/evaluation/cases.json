@@ -1,0 +1,517 @@
+{
+  "dataset": "inboxguardian-synthetic-evaluation",
+  "version": "1",
+  "notes": "All messages are synthetic and inert. Domains use the reserved .test TLD, IP addresses use documentation ranges, and identities are fictional. Labels were fixed before any case was run through the backend.",
+  "cases": [
+    {
+      "id": "A1",
+      "group": "ordinary_legitimate",
+      "label": "BENIGN",
+      "description": "Colleague reschedules a meeting; no links.",
+      "expected_behavior": "No suspicious finding; clean verdict.",
+      "rationale": "Routine internal scheduling with no request for secrets, no links and a consistent sender.",
+      "families": [],
+      "overlap": "none",
+      "email": {
+        "subject": "Thursday planning meeting moved to 14:00",
+        "from": "Noa Barak <noa.barak@northwind.test>",
+        "reply_to": "",
+        "text_body": "Hi all,\n\nThe planning meeting on Thursday is moving from 11:00 to 14:00 because the room is booked. Same agenda as before. Let me know if the new time does not work for you.\n\nThanks,\nNoa",
+        "html_body": "<div dir=\"ltr\"><p>Hi all,</p><p>The planning meeting on Thursday is moving from 11:00 to 14:00 because the room is booked. Same agenda as before. Let me know if the new time does not work for you.</p><p>Thanks,<br>Noa</p></div>"
+      }
+    },
+    {
+      "id": "A2",
+      "group": "ordinary_legitimate",
+      "label": "BENIGN",
+      "description": "Colleague shares a document link whose visible URL is the real destination.",
+      "expected_behavior": "No URL finding because the displayed host and destination host match.",
+      "rationale": "The link shows exactly where it goes and the message asks only for review comments.",
+      "families": ["url_deception"],
+      "overlap": "pattern: matching displayed and destination URL",
+      "email": {
+        "subject": "Draft budget for review",
+        "from": "Omer Shalev <omer.shalev@northwind.test>",
+        "reply_to": "",
+        "text_body": "Hi,\n\nThe draft budget is ready for your comments:\nhttps://docs.northwind.test/files/budget-draft\n\nPlease add notes by Friday.\n\nOmer",
+        "html_body": "<div dir=\"ltr\">Hi,<br><br>The draft budget is ready for your comments:<br><a href=\"https://docs.northwind.test/files/budget-draft\">https://docs.northwind.test/files/budget-draft</a><br><br>Please add notes by Friday.<br><br>Omer</div>"
+      }
+    },
+    {
+      "id": "A3",
+      "group": "ordinary_legitimate",
+      "label": "BENIGN",
+      "description": "Order confirmation with an order number and a button-style link.",
+      "expected_behavior": "No finding; the six-digit order number must not be treated as a secret.",
+      "rationale": "Standard purchase receipt from the shop's own domain with a link back to the same shop.",
+      "families": ["url_deception", "credential_context"],
+      "overlap": "none",
+      "email": {
+        "subject": "Your order 583920 has shipped",
+        "from": "Harbor Books <orders@harborbooks.test>",
+        "reply_to": "",
+        "text_body": "Thanks for your order!\n\nOrder 583920 has shipped and should arrive in 3-5 business days.\n\nView your order: https://www.harborbooks.test/orders/583920\n\nHarbor Books",
+        "html_body": "<table><tr><td><h2>Thanks for your order!</h2><p>Order 583920 has shipped and should arrive in 3-5 business days.</p><p><a href=\"https://www.harborbooks.test/orders/583920\">View your order</a></p><p>Harbor Books</p></td></tr></table>"
+      }
+    },
+    {
+      "id": "A4",
+      "group": "ordinary_legitimate",
+      "label": "BENIGN",
+      "description": "Plain-text-only personal note that uses urgent wording about a work task.",
+      "expected_behavior": "No finding; urgency without any credential or account context is not evidence.",
+      "rationale": "Ordinary time pressure between colleagues, no links, no requests for secrets.",
+      "families": ["credential_context"],
+      "overlap": "pattern: urgency alone",
+      "email": {
+        "subject": "Need the slides today",
+        "from": "Tamar Rosen <tamar.rosen@northwind.test>",
+        "reply_to": "",
+        "text_body": "Hey, sorry for the short notice but this is urgent. The client moved the call to tomorrow morning, so I need the updated slides today if possible. Call me if anything is unclear.\n\nTamar",
+        "html_body": ""
+      }
+    },
+    {
+      "id": "A5",
+      "group": "ordinary_legitimate",
+      "label": "BENIGN",
+      "description": "Internal IT maintenance notice that links to a status page by IP address.",
+      "expected_behavior": "An IP-host observation is acceptable, but the verdict should stay clean.",
+      "rationale": "Internal tooling is often reached by address, and the notice asks for no action.",
+      "families": ["url_deception"],
+      "overlap": "pattern: literal IP-address host",
+      "email": {
+        "subject": "Scheduled maintenance tonight 22:00-23:00",
+        "from": "IT Operations <it-ops@northwind.test>",
+        "reply_to": "",
+        "text_body": "The file server will be unavailable tonight between 22:00 and 23:00 for scheduled maintenance. No action is needed on your side.\n\nLive status during the window: http://192.0.2.44/status\n\nIT Operations",
+        "html_body": "<p>The file server will be unavailable tonight between 22:00 and 23:00 for scheduled maintenance. No action is needed on your side.</p><p>Live status during the window: <a href=\"http://192.0.2.44/status\">status page</a></p><p>IT Operations</p>"
+      }
+    },
+    {
+      "id": "B1",
+      "group": "legitimate_account_security",
+      "label": "BENIGN",
+      "description": "Password-reset email the user requested, with a reset button.",
+      "expected_behavior": "At most low-weight context; verdict should stay clean.",
+      "rationale": "A normal reset flow: it offers a link, asks for no secret by email and tells the user to ignore it if unrequested.",
+      "families": ["credential_context", "url_deception"],
+      "overlap": "pattern: legitimate password-reset notice",
+      "email": {
+        "subject": "Reset your Harbor Books password",
+        "from": "Harbor Books <no-reply@harborbooks.test>",
+        "reply_to": "",
+        "text_body": "We received a request to reset the password for your Harbor Books account.\n\nReset password: https://www.harborbooks.test/account/reset?token=synthetic-token-value\n\nThis link expires in 60 minutes. If you did not ask for a reset, you can ignore this email and your password will stay the same.",
+        "html_body": "<p>We received a request to reset the password for your Harbor Books account.</p><p><a href=\"https://www.harborbooks.test/account/reset?token=synthetic-token-value\">Reset password</a></p><p>This link expires in 60 minutes. If you did not ask for a reset, you can ignore this email and your password will stay the same.</p>"
+      }
+    },
+    {
+      "id": "B2",
+      "group": "legitimate_account_security",
+      "label": "BENIGN",
+      "description": "One-time sign-in code delivered by the service, with a do-not-share warning.",
+      "expected_behavior": "Should not be treated as a request to hand over a secret; the code must not be echoed.",
+      "rationale": "The service is delivering a code the user asked for and explicitly warns against sharing it.",
+      "families": ["credential_context"],
+      "overlap": "pattern: legitimate MFA code delivery",
+      "email": {
+        "subject": "Your Northwind sign-in code",
+        "from": "Northwind Accounts <accounts@northwind.test>",
+        "reply_to": "",
+        "text_body": "Your verification code is 482913.\n\nEnter this code on the sign-in page to finish signing in. It expires in 10 minutes.\n\nNorthwind staff will never ask you for this code. If you did not try to sign in, you can ignore this message.",
+        "html_body": "<p>Your verification code is <b>482913</b>.</p><p>Enter this code on the sign-in page to finish signing in. It expires in 10 minutes.</p><p>Northwind staff will never ask you for this code. If you did not try to sign in, you can ignore this message.</p>"
+      }
+    },
+    {
+      "id": "B3",
+      "group": "legitimate_account_security",
+      "label": "BENIGN",
+      "description": "New-device sign-in alert that advises reviewing activity.",
+      "expected_behavior": "At most low-weight context; verdict should stay clean.",
+      "rationale": "A standard security alert from the account's own domain that asks for no secret and applies no deadline.",
+      "families": ["credential_context", "url_deception"],
+      "overlap": "none",
+      "email": {
+        "subject": "New sign-in to your Northwind account",
+        "from": "Northwind Accounts <accounts@northwind.test>",
+        "reply_to": "",
+        "text_body": "We noticed a new sign-in to your account from a Windows device in Haifa.\n\nIf this was you, there is nothing more to do. If you do not recognise it, review your recent activity and change your password from the security settings page.\n\nReview activity: https://accounts.northwind.test/security/activity",
+        "html_body": "<p>We noticed a new sign-in to your account from a Windows device in Haifa.</p><p>If this was you, there is nothing more to do. If you do not recognise it, review your recent activity and change your password from the security settings page.</p><p><a href=\"https://accounts.northwind.test/security/activity\">Review activity</a></p>"
+      }
+    },
+    {
+      "id": "B4",
+      "group": "legitimate_account_security",
+      "label": "BENIGN",
+      "description": "Welcome email asking a new user to confirm their email address.",
+      "expected_behavior": "Account-verification context may be noted, but the verdict should stay clean.",
+      "rationale": "Ordinary sign-up confirmation that follows an action the user just took.",
+      "families": ["credential_context", "url_deception"],
+      "overlap": "pattern: ordinary account verification with a link",
+      "email": {
+        "subject": "Welcome to Trailhead Maps - confirm your email",
+        "from": "Trailhead Maps <hello@trailheadmaps.test>",
+        "reply_to": "",
+        "text_body": "Welcome to Trailhead Maps!\n\nPlease confirm your email address to finish setting up your account:\nhttps://app.trailheadmaps.test/confirm?id=synthetic-id\n\nIf you did not create an account, no further action is needed.",
+        "html_body": "<h1>Welcome to Trailhead Maps!</h1><p>Please confirm your email address to finish setting up your account.</p><p><a href=\"https://app.trailheadmaps.test/confirm?id=synthetic-id\">Confirm email address</a></p><p>If you did not create an account, no further action is needed.</p>"
+      }
+    },
+    {
+      "id": "B5",
+      "group": "legitimate_account_security",
+      "label": "BENIGN",
+      "description": "Security-awareness reminder telling staff never to share passwords or codes.",
+      "expected_behavior": "Warning language must not be read as a request for secrets.",
+      "rationale": "The message discourages exactly the behaviour phishing asks for and contains no link.",
+      "families": ["credential_context"],
+      "overlap": "pattern: benign do-not-share warning",
+      "email": {
+        "subject": "Reminder: phishing awareness",
+        "from": "IT Security <security@northwind.test>",
+        "reply_to": "",
+        "text_body": "A reminder from IT Security.\n\nWe will never ask for your password or verification code by email, phone or chat. Do not share your password with anyone, including IT staff. Do not turn off multi-factor authentication because a message tells you to.\n\nIf you receive a message asking for these details, report it with the Report button.",
+        "html_body": ""
+      }
+    },
+    {
+      "id": "C1",
+      "group": "legitimate_newsletter_link_delegated",
+      "label": "BENIGN",
+      "description": "Newsletter sent through a mailing platform with tracking links and a platform Reply-To.",
+      "expected_behavior": "Reply-To difference may be noted as low-weight; verdict should stay clean.",
+      "rationale": "Tracking redirects and a separate reply address are normal for bulk newsletters; link text makes no host claim.",
+      "families": ["sender_identity", "url_deception"],
+      "overlap": "pattern: tracking link with generic text; Reply-To on another domain",
+      "email": {
+        "subject": "Trailhead Maps monthly: five autumn routes",
+        "from": "Trailhead Maps <newsletter@trailheadmaps.test>",
+        "reply_to": "replies@bulkmail-platform.test",
+        "text_body": "Five autumn routes worth the drive.\n\nRead the full story: https://click.bulkmail-platform.test/c/8841?u=synthetic\n\nUnsubscribe: https://click.bulkmail-platform.test/u/8841",
+        "html_body": "<h2>Five autumn routes worth the drive</h2><p><a href=\"https://click.bulkmail-platform.test/c/8841?u=synthetic\">Read the full story</a></p><p style=\"font-size:11px\"><a href=\"https://click.bulkmail-platform.test/u/8841\">Unsubscribe</a></p>"
+      }
+    },
+    {
+      "id": "C2",
+      "group": "legitimate_newsletter_link_delegated",
+      "label": "BENIGN",
+      "description": "Support-desk ticket update whose replies route to a ticketing platform.",
+      "expected_behavior": "Reply-To difference may be noted as low-weight; verdict should stay clean.",
+      "rationale": "Help desks commonly use a third-party ticketing address for replies.",
+      "families": ["sender_identity"],
+      "overlap": "pattern: Reply-To on another domain",
+      "email": {
+        "subject": "[Ticket 20417] Printer on floor 3 - update",
+        "from": "Northwind Helpdesk <helpdesk@northwind.test>",
+        "reply_to": "ticket-20417@deskflow-tickets.test",
+        "text_body": "Hello,\n\nA technician has been assigned to your ticket about the printer on floor 3 and will visit tomorrow morning.\n\nReply to this email to add information to the ticket.\n\nNorthwind Helpdesk",
+        "html_body": "<p>Hello,</p><p>A technician has been assigned to your ticket about the printer on floor 3 and will visit tomorrow morning.</p><p>Reply to this email to add information to the ticket.</p><p>Northwind Helpdesk</p>"
+      }
+    },
+    {
+      "id": "C3",
+      "group": "legitimate_newsletter_link_delegated",
+      "label": "BENIGN",
+      "description": "Marketing email whose link text shows the shop URL while the href is a click-tracking redirect.",
+      "expected_behavior": "A display/destination difference may be reported; ideally the verdict stays clean.",
+      "rationale": "Bulk mail platforms routinely rewrite visible URLs into tracking redirects; there is no request for secrets.",
+      "families": ["url_deception"],
+      "overlap": "pattern: displayed URL host differs from destination host",
+      "email": {
+        "subject": "Autumn sale: 20% off all travel guides",
+        "from": "Harbor Books <offers@harborbooks.test>",
+        "reply_to": "",
+        "text_body": "Autumn sale: 20% off all travel guides until Sunday.\n\nShop now at https://www.harborbooks.test/sale\n<https://track.mailer-platform.test/r/55120?c=synthetic>",
+        "html_body": "<h2>Autumn sale</h2><p>20% off all travel guides until Sunday.</p><p>Shop now at <a href=\"https://track.mailer-platform.test/r/55120?c=synthetic\">https://www.harborbooks.test/sale</a></p>"
+      }
+    },
+    {
+      "id": "C4",
+      "group": "legitimate_newsletter_link_delegated",
+      "label": "BENIGN",
+      "description": "Calendar invitation sent by a scheduling service on behalf of a person, with replies going to that person.",
+      "expected_behavior": "Reply-To difference may be noted as low-weight; verdict should stay clean.",
+      "rationale": "Delegated sending by scheduling tools is common and the invitation asks for nothing sensitive.",
+      "families": ["sender_identity", "url_deception"],
+      "overlap": "pattern: delegated sender",
+      "email": {
+        "subject": "Invitation: Supplier review, Tuesday 10:00",
+        "from": "Dana Levi via MeetPlanner <invites@meetplanner.test>",
+        "reply_to": "dana.levi@northwind.test",
+        "text_body": "Dana Levi has invited you to: Supplier review\nWhen: Tuesday 10:00-10:45\nWhere: Meeting room B\n\nRespond: https://meetplanner.test/rsvp/7c21",
+        "html_body": "<p><b>Dana Levi</b> has invited you to: Supplier review</p><p>When: Tuesday 10:00-10:45<br>Where: Meeting room B</p><p><a href=\"https://meetplanner.test/rsvp/7c21\">Respond</a></p>"
+      }
+    },
+    {
+      "id": "C5",
+      "group": "legitimate_newsletter_link_delegated",
+      "label": "BENIGN",
+      "description": "Billing notice whose display name contains the company domain and which is sent from a subdomain of it.",
+      "expected_behavior": "No sender or URL finding; subdomain relationships are legitimate.",
+      "rationale": "The display-name domain, sending subdomain and link host all belong to the same organisation.",
+      "families": ["sender_identity", "url_deception"],
+      "overlap": "pattern: same-domain and subdomain relationships",
+      "email": {
+        "subject": "Your October invoice is available",
+        "from": "northwind.test Billing <billing@mail.northwind.test>",
+        "reply_to": "",
+        "text_body": "Your October invoice is now available in the customer portal.\n\nhttps://northwind.test/invoices\n<https://portal.northwind.test/invoices/2291>\n\nNo payment action is needed if you pay by direct debit.",
+        "html_body": "<p>Your October invoice is now available in the customer portal.</p><p><a href=\"https://portal.northwind.test/invoices/2291\">https://northwind.test/invoices</a></p><p>No payment action is needed if you pay by direct debit.</p>"
+      }
+    },
+    {
+      "id": "D1",
+      "group": "credential_phishing",
+      "label": "SUSPICIOUS",
+      "description": "Mailbox-quota lure asking the user to confirm their password through a link.",
+      "expected_behavior": "Credential request detected; verdict at least SUSPICIOUS.",
+      "rationale": "Asks for a password under a storage pretext and points to a host unrelated to the claimed service.",
+      "families": ["credential_context"],
+      "overlap": "pattern: confirm-your-password request with a link",
+      "email": {
+        "subject": "Mailbox storage 98% full",
+        "from": "Mail Administrator <admin@mailbox-quota-notice.test>",
+        "reply_to": "",
+        "text_body": "Your mailbox has reached 98% of its storage limit and incoming messages may be rejected.\n\nTo keep receiving mail, confirm your password on the storage upgrade page:\nhttps://storage-upgrade.mailbox-quota-notice.test/extend\n\nMail Administrator",
+        "html_body": "<p>Your mailbox has reached 98% of its storage limit and incoming messages may be rejected.</p><p>To keep receiving mail, confirm your password on the storage upgrade page.</p><p><a href=\"https://storage-upgrade.mailbox-quota-notice.test/extend\">Increase storage</a></p><p>Mail Administrator</p>"
+      }
+    },
+    {
+      "id": "D2",
+      "group": "credential_phishing",
+      "label": "SUSPICIOUS",
+      "description": "Fake IT migration notice asking the user to reply with username and password; no link.",
+      "expected_behavior": "Credential request detected; verdict at least SUSPICIOUS.",
+      "rationale": "No legitimate IT process collects passwords by email reply.",
+      "families": ["credential_context"],
+      "overlap": "pattern: reply-with-password request",
+      "email": {
+        "subject": "Mail migration this weekend - action required",
+        "from": "IT Service Desk <servicedesk@it-migration-team.test>",
+        "reply_to": "",
+        "text_body": "Dear colleague,\n\nWe are moving all mailboxes to the new mail system this weekend. So that we can move your mailbox without interruption, please reply with your username and current password by end of day.\n\nThank you,\nIT Service Desk",
+        "html_body": ""
+      }
+    },
+    {
+      "id": "D3",
+      "group": "credential_phishing",
+      "label": "SUSPICIOUS",
+      "description": "Informal one-time-code theft attempt: sender claims a code was sent to the recipient by mistake.",
+      "expected_behavior": "Ideally a credential request is detected; verdict at least SUSPICIOUS.",
+      "rationale": "A classic account-takeover step: getting the victim to forward a login code they just received.",
+      "families": ["credential_context"],
+      "overlap": "none",
+      "email": {
+        "subject": "Oops, wrong number",
+        "from": "Lior <lior.k.personal@freemail-box.test>",
+        "reply_to": "",
+        "text_body": "Hi, really sorry to bother you. I was signing in to my account and typed your number by mistake, so the text message went to your phone. Could you forward me the 6-digit code you just received? It only works for a few minutes. Thanks so much!",
+        "html_body": ""
+      }
+    },
+    {
+      "id": "D4",
+      "group": "credential_phishing",
+      "label": "SUSPICIOUS",
+      "description": "Request to approve an unexpected sign-in prompt and switch off two-step verification.",
+      "expected_behavior": "Security-bypass instruction detected; verdict at least SUSPICIOUS.",
+      "rationale": "Asking a user to approve a prompt they did not initiate and to disable a security control is an account-takeover technique.",
+      "families": ["credential_context"],
+      "overlap": "pattern: turn off / disable verification",
+      "email": {
+        "subject": "Login system test today",
+        "from": "Platform Team <platform@northwind-systems-test.test>",
+        "reply_to": "",
+        "text_body": "Hello,\n\nWe are testing the new login system this afternoon. You will get a sign-in prompt on your phone shortly; please approve it even though you did not start it. To avoid errors during the test, turn off two-step verification on your account until tomorrow.\n\nPlatform Team",
+        "html_body": "<p>Hello,</p><p>We are testing the new login system this afternoon. You will get a sign-in prompt on your phone shortly; please approve it even though you did not start it. To avoid errors during the test, turn off two-step verification on your account until tomorrow.</p><p>Platform Team</p>"
+      }
+    },
+    {
+      "id": "D5",
+      "group": "credential_phishing",
+      "label": "SUSPICIOUS",
+      "description": "Deactivation threat asking for 'login details' on a 'secure form', paraphrased to avoid the word password.",
+      "expected_behavior": "Ideally credential or account-threat context is detected; verdict at least SUSPICIOUS.",
+      "rationale": "Deadline pressure plus a request to type login details into a linked form on an unrelated host.",
+      "families": ["credential_context"],
+      "overlap": "none",
+      "email": {
+        "subject": "Email deactivation notice",
+        "from": "Webmail Support <support@webmail-renewal-desk.test>",
+        "reply_to": "",
+        "text_body": "Dear user,\n\nOur records show your email has not been renewed for this year. Kindly type your login details on the secure form to prevent deactivation of your email within 24 hours.\n\nSecure form: https://renewal-form.webmail-renewal-desk.test/keep\n\nWebmail Support",
+        "html_body": "<p>Dear user,</p><p>Our records show your email has not been renewed for this year. Kindly type your login details on the secure form to prevent deactivation of your email within 24 hours.</p><p><a href=\"https://renewal-form.webmail-renewal-desk.test/keep\">Secure form</a></p><p>Webmail Support</p>"
+      }
+    },
+    {
+      "id": "E1",
+      "group": "deceptive_link_phishing",
+      "label": "SUSPICIOUS",
+      "description": "Statement notice whose link text shows the bank URL while the href points to an unrelated lookalike host.",
+      "expected_behavior": "Display/destination mismatch detected; verdict at least SUSPICIOUS.",
+      "rationale": "The visible URL misrepresents the destination; there is no other signal.",
+      "families": ["url_deception"],
+      "overlap": "pattern: displayed URL host differs from destination host",
+      "email": {
+        "subject": "Your monthly statement is ready",
+        "from": "Coastline Bank <statements@coastline-bank-docs.test>",
+        "reply_to": "",
+        "text_body": "Your monthly statement is ready to view.\n\nhttps://online.coastlinebank.test/statements\n<https://coastlinebank-statements-view.test/open>",
+        "html_body": "<p>Your monthly statement is ready to view.</p><p><a href=\"https://coastlinebank-statements-view.test/open\">https://online.coastlinebank.test/statements</a></p>"
+      }
+    },
+    {
+      "id": "E2",
+      "group": "deceptive_link_phishing",
+      "label": "SUSPICIOUS",
+      "description": "Sign-in link that shows a real login host but resolves to that name used as a subdomain prefix of another domain, with account-verification wording.",
+      "expected_behavior": "Deceptive-subdomain finding detected; verdict at least SUSPICIOUS.",
+      "rationale": "The destination embeds the trusted host name as a prefix of an unrelated registered domain.",
+      "families": ["url_deception", "credential_context"],
+      "overlap": "pattern: displayed host used as subdomain prefix (same shape as the live Gmail test message)",
+      "email": {
+        "subject": "Action needed on your Northwind account",
+        "from": "Northwind Accounts <accounts@northwind-notices.test>",
+        "reply_to": "",
+        "text_body": "We could not verify your account details. Please sign in to verify your account and restore full access.\n\nhttps://login.northwind.test\n<https://login.northwind.test.session-check.test/auth>",
+        "html_body": "<p>We could not verify your account details. Please sign in to verify your account and restore full access.</p><p><a href=\"https://login.northwind.test.session-check.test/auth\">https://login.northwind.test</a></p>"
+      }
+    },
+    {
+      "id": "E3",
+      "group": "deceptive_link_phishing",
+      "label": "SUSPICIOUS",
+      "description": "Plain-text payment link that hides the real host behind a hostname-like userinfo part.",
+      "expected_behavior": "Userinfo finding detected; verdict at least SUSPICIOUS.",
+      "rationale": "Text before '@' in a URL is not the destination; the real host is unrelated to the one shown first.",
+      "families": ["url_deception"],
+      "overlap": "pattern: hostname-like URL userinfo",
+      "email": {
+        "subject": "Outstanding delivery fee",
+        "from": "Parcel Service <notify@parcel-fee-desk.test>",
+        "reply_to": "",
+        "text_body": "A small customs fee is outstanding for your parcel. Pay online to release it for delivery:\n\nhttps://pay.swiftparcel.test@fee-collect-portal.test/release?p=synthetic",
+        "html_body": ""
+      }
+    },
+    {
+      "id": "E4",
+      "group": "deceptive_link_phishing",
+      "label": "SUSPICIOUS",
+      "description": "Shared-document lure from an unknown external sender whose only link goes to a raw IP address.",
+      "expected_behavior": "IP-host finding detected; a warning verdict is desirable.",
+      "rationale": "An unsolicited 'shared document' that resolves to a bare IP address is a common malware and phishing delivery pattern.",
+      "families": ["url_deception"],
+      "overlap": "pattern: literal IP-address host",
+      "email": {
+        "subject": "Scanned document shared with you",
+        "from": "Document Share <share@doc-delivery-node.test>",
+        "reply_to": "",
+        "text_body": "A scanned document (3 pages) has been shared with you.\n\nDownload the document: http://203.0.113.25/files/scan-0931",
+        "html_body": "<p>A scanned document (3 pages) has been shared with you.</p><p><a href=\"http://203.0.113.25/files/scan-0931\">Download the document</a></p>"
+      }
+    },
+    {
+      "id": "E5",
+      "group": "deceptive_link_phishing",
+      "label": "SUSPICIOUS",
+      "description": "Link text shows a bare domain without a scheme while the href points to a hyphenated lookalike host.",
+      "expected_behavior": "Ideally a display/destination mismatch is detected; verdict at least SUSPICIOUS.",
+      "rationale": "The visible domain claim does not match the destination; attackers often omit the scheme in link text.",
+      "families": ["url_deception"],
+      "overlap": "none",
+      "email": {
+        "subject": "Update your delivery preferences",
+        "from": "Swift Parcel <updates@swiftparcel-notify.test>",
+        "reply_to": "",
+        "text_body": "We could not deliver your parcel. Update your delivery preferences at www.swiftparcel.test/account",
+        "html_body": "<p>We could not deliver your parcel. Update your delivery preferences at <a href=\"https://swiftparcel-account-update.test/prefs\">www.swiftparcel.test/account</a></p>"
+      }
+    },
+    {
+      "id": "F1",
+      "group": "sender_impersonation",
+      "label": "SUSPICIOUS",
+      "description": "Display name contains the organisation's domain while the actual address is on an unrelated domain.",
+      "expected_behavior": "Display-domain mismatch detected; verdict at least SUSPICIOUS.",
+      "rationale": "The display name asserts an identity the sending domain does not support.",
+      "families": ["sender_identity"],
+      "overlap": "pattern: domain claim in display name",
+      "email": {
+        "subject": "Unusual activity on your account",
+        "from": "northwind.test Security <alerts@secure-notify-centre.test>",
+        "reply_to": "",
+        "text_body": "We detected unusual activity on your account. A member of our team will contact you shortly. Please keep this message for your records.",
+        "html_body": "<p>We detected unusual activity on your account. A member of our team will contact you shortly. Please keep this message for your records.</p>"
+      }
+    },
+    {
+      "id": "F2",
+      "group": "sender_impersonation",
+      "label": "SUSPICIOUS",
+      "description": "Display name uses a bank's brand name (no domain) while the address is on an unrelated domain; asks the user to call a number.",
+      "expected_behavior": "Ideally sender impersonation is detected; verdict at least SUSPICIOUS.",
+      "rationale": "Brand impersonation in the display name combined with a callback request is a known vishing lure.",
+      "families": ["sender_identity"],
+      "overlap": "none",
+      "email": {
+        "subject": "Important: card payment declined",
+        "from": "Coastline Bank Support <support@cb-customer-helpline.test>",
+        "reply_to": "",
+        "text_body": "A recent card payment was declined for security reasons. To restore your card, call our support line on 03-555-0142 and quote reference CB-7731.",
+        "html_body": ""
+      }
+    },
+    {
+      "id": "F3",
+      "group": "sender_impersonation",
+      "label": "SUSPICIOUS",
+      "description": "Executive-style request where From shows a colleague's address but Reply-To redirects to a lookalike domain.",
+      "expected_behavior": "Reply-To mismatch detected; a warning verdict is desirable.",
+      "rationale": "Reply redirection to a near-identical domain is the opening move of business email compromise.",
+      "families": ["sender_identity"],
+      "overlap": "pattern: Reply-To on another domain",
+      "email": {
+        "subject": "Quick favour",
+        "from": "Maya Cohen <maya.cohen@northwind.test>",
+        "reply_to": "maya.cohen@northwind-mail-office.test",
+        "text_body": "Are you at your desk? I am in back-to-back meetings and need a quick favour handled quietly. Reply to this email, do not call.\n\nMaya",
+        "html_body": ""
+      }
+    },
+    {
+      "id": "F4",
+      "group": "sender_impersonation",
+      "label": "SUSPICIOUS",
+      "description": "Supplier impersonation from a lookalike domain (digit substituted for a letter) announcing new remittance details.",
+      "expected_behavior": "Ideally a lookalike sender is detected; verdict at least SUSPICIOUS.",
+      "rationale": "A one-character domain substitution combined with a change of payment details is a typical invoice-fraud pattern.",
+      "families": ["sender_identity", "financial_fraud"],
+      "overlap": "none",
+      "email": {
+        "subject": "Updated remittance details",
+        "from": "Northwind Accounts Receivable <accounts@northw1nd.test>",
+        "reply_to": "",
+        "text_body": "Good morning,\n\nPlease note that our bank account has changed. All future payments should be sent to the new account in the attached letter. Kindly confirm once your records are updated.\n\nAccounts Receivable",
+        "html_body": ""
+      }
+    },
+    {
+      "id": "F5",
+      "group": "sender_impersonation",
+      "label": "SUSPICIOUS",
+      "description": "Payroll impersonation combining a display-name domain claim, a different Reply-To, a password request and a deceptive link.",
+      "expected_behavior": "Several independent families trigger; HIGH_RISK expected.",
+      "rationale": "Identity claim, reply redirection, credential request and a misleading link all point the same way.",
+      "families": ["sender_identity", "url_deception", "credential_context"],
+      "overlap": "pattern: combined multi-signal message",
+      "email": {
+        "subject": "Your payslip is ready - sign-in required",
+        "from": "payroll.northwind.test <payroll@hr-payslip-updates.test>",
+        "reply_to": "payroll-desk@hr-reply-centre.test",
+        "text_body": "Your payslip for this month is ready. For security, enter your password to view it:\n\nhttps://payroll.northwind.test/payslip\n<https://payslip-viewer.hr-payslip-updates.test/login>",
+        "html_body": "<p>Your payslip for this month is ready. For security, enter your password to view it:</p><p><a href=\"https://payslip-viewer.hr-payslip-updates.test/login\">https://payroll.northwind.test/payslip</a></p>"
+      }
+    }
+  ]
+}
