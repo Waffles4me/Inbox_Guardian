@@ -61,6 +61,14 @@ _NORMAL_LOGIN_BYPASS_RE = re.compile(
     r"\b(?:do not|don't|dont|avoid|skip)\b[\w\s,.;:'\"/-]{0,40}\b(?:normal|usual|official)\s+login\s+page\b",
     re.IGNORECASE,
 )
+FORWARDED_CONTENT_GAP = (
+    "This message contains forwarded content that was not assessed for credential requests; only text written "
+    "by the forwarding sender was checked."
+)
+QUOTED_ONLY_GAP = (
+    "The message body contained only quoted or header-style lines, which were not assessed for credential requests."
+)
+QUOTED_LINES_NOTE = "Quoted reply lines in the plain-text body were not assessed for credential requests."
 _FORWARDED_MARKER_RE = re.compile(r"^\s*(?:[-]+\s*)?(?:forwarded message|original message)(?:\s*[-]+)?\s*$", re.IGNORECASE)
 _HEADER_LINE_RE = re.compile(r"^\s*(?:from|sent|to|subject):\s+.+", re.IGNORECASE)
 
@@ -71,16 +79,26 @@ def detect_credential_phishing_context(parsed_email: ParsedEmail) -> DetectorRes
     # matched as its own context so a pattern can never span the end of one and the start of the other.
     # A forwarded-message marker in the plain text hides everything after it. The HTML copy repeats that
     # forwarded content without line structure, so it is not used as a second context in that case.
-    html_text = "" if _has_forwarded_marker(parsed_email.text_body) else parsed_email.html_visible_text
-    active_bodies = [body for body in (_active_text(parsed_email.text_body), _active_text(html_text)) if body]
+    text_active, forwarded_excluded, quoted_excluded = _split_active_text(parsed_email.text_body)
+    html_active, _, _ = _split_active_text("" if forwarded_excluded else parsed_email.html_visible_text)
+    active_bodies = [body for body in (text_active, html_active) if body]
     active_body = " ".join(active_bodies)
-    contexts = list(
-        dict.fromkeys(" ".join(part for part in [subject, body] if part) for body in active_bodies or [""])
-    )
-    contexts = [context for context in contexts if context]
+    # The subject is a context of its own as well, so a pattern cannot span the subject/body boundary.
+    contexts = list(dict.fromkeys(part for part in [subject, *active_bodies] if part))
     has_links = bool(parsed_email.text_urls or parsed_email.html_links)
     evidence_sources = _evidence_sources(parsed_email, subject, active_body)
+    # Excluded content is never attributed to the sender, but it is reported so that it cannot pass as assessed.
+    coverage_gaps: tuple[str, ...] = ()
+    exclusion_notes: list[str] = []
+    if forwarded_excluded:
+        coverage_gaps = (FORWARDED_CONTENT_GAP,)
+    elif quoted_excluded and not active_bodies:
+        coverage_gaps = (QUOTED_ONLY_GAP,)
+    elif quoted_excluded:
+        exclusion_notes.append(QUOTED_LINES_NOTE)
     limitations = [
+        *coverage_gaps,
+        *exclusion_notes,
         "Credential-context checks are English-focused heuristic language rules.",
         "The detector does not determine whether linked websites are malicious and does not score risk.",
     ]
@@ -97,12 +115,13 @@ def detect_credential_phishing_context(parsed_email: ParsedEmail) -> DetectorRes
                 ]
             ),
             implementation_version=IMPLEMENTATION_VERSION,
+            coverage_gaps=coverage_gaps,
         )
 
     findings: list[DetectorFinding] = []
     credential_request = _first_in_contexts(_find_credential_request, contexts)
     account_verification = _first_in_contexts(lambda text: _find_match(_ACCOUNT_VERIFICATION_RE, text), contexts)
-    urgency = any(_URGENCY_RE.search(context) and _THREAT_RE.search(context) for context in contexts)
+    urgency = any(_has_urgent_threat(subject, body) for body in active_bodies or [""])
     bypass = _first_in_contexts(_find_security_bypass, contexts)
     if not bypass and credential_request:
         bypass = _first_in_contexts(lambda text: _find_match(_NORMAL_LOGIN_BYPASS_RE, text), contexts)
@@ -125,6 +144,8 @@ def detect_credential_phishing_context(parsed_email: ParsedEmail) -> DetectorRes
     deduped_findings = _dedupe_findings(findings)
     if deduped_findings:
         status = DetectorStatus.TRIGGERED
+    elif coverage_gaps:
+        status = DetectorStatus.INCONCLUSIVE
     elif any(_has_ambiguous_context(context) for context in contexts):
         status = DetectorStatus.INCONCLUSIVE
         limitations = [
@@ -145,6 +166,7 @@ def detect_credential_phishing_context(parsed_email: ParsedEmail) -> DetectorRes
         evidence_sources=evidence_sources,
         limitations=tuple(limitations),
         implementation_version=IMPLEMENTATION_VERSION,
+        coverage_gaps=coverage_gaps,
     )
 
 
@@ -236,24 +258,29 @@ def _first_in_contexts(find: Callable[[str], str], contexts: list[str]) -> str:
     return ""
 
 
-def _has_forwarded_marker(raw_text: str) -> bool:
-    return any(_FORWARDED_MARKER_RE.match(line.strip()) for line in raw_text.splitlines())
+def _has_urgent_threat(subject: str, body: str) -> bool:
+    """Urgency and threat wording may co-occur across the subject and one body; neither is a spanning match."""
+    texts = [text for text in (subject, body) if text]
+    return any(_URGENCY_RE.search(text) for text in texts) and any(_THREAT_RE.search(text) for text in texts)
 
 
-def _active_text(raw_text: str) -> str:
+def _split_active_text(raw_text: str) -> tuple[str, bool, bool]:
+    """Return the sender's own text and whether forwarded or quoted content was excluded from it."""
     active_lines: list[str] = []
-    in_forwarded_block = False
+    forwarded_excluded = False
+    quoted_excluded = False
     for line in raw_text.splitlines():
         stripped = line.strip()
         if _FORWARDED_MARKER_RE.match(stripped):
-            in_forwarded_block = True
+            forwarded_excluded = True
             continue
-        if in_forwarded_block:
+        if forwarded_excluded:
             continue
         if stripped.startswith(">") or _HEADER_LINE_RE.match(stripped):
+            quoted_excluded = quoted_excluded or bool(stripped.lstrip("> "))
             continue
         active_lines.append(stripped)
-    return " ".join(line for line in active_lines if line)
+    return " ".join(line for line in active_lines if line), forwarded_excluded, quoted_excluded
 
 
 def _find_match(pattern: re.Pattern[str], text: str) -> str:

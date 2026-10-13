@@ -35,4 +35,6 @@ class DetectorResult:
     evidence_sources: tuple[str, ...] = field(default_factory=tuple)
     limitations: tuple[str, ...] = field(default_factory=tuple)
     implementation_version: str = "0.1.0"
+    # User-facing reasons why content relevant to this detector was deliberately not assessed.
+    coverage_gaps: tuple[str, ...] = field(default_factory=tuple)
 

@@ -299,6 +299,10 @@ def _assess_coverage(
         else:
             reasons.append("No analyzable subject, body text, HTML text or URL evidence was available.")
 
+    if below_suspicious:
+        for detector in implemented_results:
+            reasons.extend(detector.coverage_gaps)
+
     inconsistent = [
         detector.detector_id
         for detector in implemented_results

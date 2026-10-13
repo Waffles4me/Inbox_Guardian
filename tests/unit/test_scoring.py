@@ -433,6 +433,46 @@ def test_missing_sender_with_low_score_explains_incomplete() -> None:
     assert any("sender identity" in reason for reason in result.coverage.reasons)
 
 
+def gap_detector(*findings: DetectorFinding) -> DetectorResult:
+    return DetectorResult(
+        detector_id="credential_context",
+        status=DetectorStatus.TRIGGERED if findings else DetectorStatus.INCONCLUSIVE,
+        findings=tuple(findings),
+        implementation_version="synthetic-test",
+        coverage_gaps=("Synthetic forwarded content was not assessed.",),
+    )
+
+
+def test_detector_coverage_gap_without_sufficient_evidence_is_incomplete() -> None:
+    result = score_for(gap_detector())
+
+    assert result.risk_score == 0
+    assert result.verdict == "INCOMPLETE"
+    assert result.coverage.reasons == ("Synthetic forwarded content was not assessed.",)
+
+
+def test_detector_coverage_gap_keeps_low_findings_but_stays_incomplete() -> None:
+    result = score_for(
+        gap_detector(),
+        detector("sender_identity", finding("sender_reply_to_domain_mismatch", sources=("from", "reply_to"))),
+    )
+
+    assert result.verdict == "INCOMPLETE"
+    assert [(item.finding.id, item.effective_contribution) for item in result.scored_findings] == [
+        ("sender_reply_to_domain_mismatch", 5)
+    ]
+
+
+def test_detector_coverage_gap_does_not_override_positive_evidence() -> None:
+    from_active_text = score_for(gap_detector(finding("credential_secret_collection_request")))
+    from_other_family = score_for(gap_detector(), detector("url_deception", finding("url_deceptive_subdomain")))
+
+    assert (from_active_text.verdict, from_active_text.risk_score) == ("SUSPICIOUS", 20)
+    assert (from_other_family.verdict, from_other_family.risk_score) == ("SUSPICIOUS", 35)
+    assert from_active_text.coverage.reasons == ()
+    assert from_other_family.coverage.reasons == ()
+
+
 def test_unimplemented_families_are_limitations_not_clean_evidence() -> None:
     result = score_for()
 

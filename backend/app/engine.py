@@ -8,7 +8,7 @@ from backend.app.detectors.credentials import detect_credential_phishing_context
 from backend.app.detectors.sender import detect_sender_impersonation
 from backend.app.detectors.urls import detect_deceptive_urls
 from backend.app.models import EmailPayload
-from backend.app.parsing import ParsedEmail, ParseIssue, parse_email_payload
+from backend.app.parsing import EvidenceSource, ParsedEmail, ParseIssue, parse_email_payload
 
 
 IMPLEMENTATION_VERSION = "engine-0.1.0"
@@ -113,7 +113,11 @@ def _collect_limitations(
     detector_results: list[DetectorResult],
 ) -> tuple[str, ...]:
     limitations: list[str] = []
-    if parsed_email.issues:
+    # Reply-To is optional, so its absence is not an input problem worth reporting.
+    if any(
+        not (issue.code == "mailbox_missing" and issue.source == EvidenceSource.REPLY_TO)
+        for issue in parsed_email.issues
+    ):
         limitations.append("Parser recorded input normalization issues; review parse_issues before scoring.")
     for result in detector_results:
         limitations.extend(result.limitations)

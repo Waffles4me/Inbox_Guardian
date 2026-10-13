@@ -1,7 +1,12 @@
 import pytest
 
 from backend.app.detectors.base import DetectorStatus
-from backend.app.detectors.credentials import detect_credential_phishing_context
+from backend.app.detectors.credentials import (
+    FORWARDED_CONTENT_GAP,
+    QUOTED_LINES_NOTE,
+    QUOTED_ONLY_GAP,
+    detect_credential_phishing_context,
+)
 from backend.app.models import EmailPayload
 from backend.app.parsing import parse_email_payload
 
@@ -193,8 +198,82 @@ def test_quoted_or_forwarded_phishing_language_is_ignored_when_identifiable() ->
         )
     )
 
+    assert detector_result.status == DetectorStatus.INCONCLUSIVE
+    assert detector_result.findings == ()
+    assert detector_result.coverage_gaps == (FORWARDED_CONTENT_GAP,)
+    assert FORWARDED_CONTENT_GAP in detector_result.limitations
+
+
+def test_request_written_by_forwarding_sender_is_detected_and_forward_is_still_reported() -> None:
+    detector_result = result(
+        text_body=(
+            "Please reply to this email with your password so I can check the account.\n\n"
+            "----- Forwarded message -----\n"
+            "From: newsletter@example.test\n"
+            "Our autumn catalogue is out."
+        )
+    )
+
+    assert detector_result.status == DetectorStatus.TRIGGERED
+    assert finding_ids(detector_result) == ["credential_secret_collection_request"]
+    assert detector_result.coverage_gaps == (FORWARDED_CONTENT_GAP,)
+
+
+def test_quoted_reply_with_active_text_is_assessed_and_noted() -> None:
+    detector_result = result(
+        text_body="Thanks, I will bring the slides.\n\n> Please submit your password immediately.\n> Regards"
+    )
+
     assert detector_result.status == DetectorStatus.NOT_TRIGGERED
     assert detector_result.findings == ()
+    assert detector_result.coverage_gaps == ()
+    assert QUOTED_LINES_NOTE in detector_result.limitations
+
+
+def test_body_made_only_of_quoted_lines_is_a_coverage_gap() -> None:
+    detector_result = result(text_body="> Please submit your password immediately.\n> Regards")
+
+    assert detector_result.status == DetectorStatus.INCONCLUSIVE
+    assert detector_result.findings == ()
+    assert detector_result.coverage_gaps == (QUOTED_ONLY_GAP,)
+
+
+def test_message_without_excluded_content_has_no_coverage_gap() -> None:
+    detector_result = result(text_body="Lunch is at noon.", html_body="<p>Lunch is at noon.</p>")
+
+    assert detector_result.coverage_gaps == ()
+    assert QUOTED_LINES_NOTE not in detector_result.limitations
+
+
+@pytest.mark.parametrize(
+    ("subject", "body", "unexpected"),
+    [
+        ("Please confirm", "Password policy update: nothing to do.", "credential_secret_collection_request"),
+        ("Reminder: please disable", "Security training is on Monday.", "credential_security_bypass_instruction"),
+        ("Please verify", "Your account manager will call on Monday.", "credential_account_verification_with_link"),
+    ],
+)
+def test_patterns_cannot_span_the_subject_and_body(subject: str, body: str, unexpected: str) -> None:
+    for bodies in ({"text_body": body}, {"html_body": f"<p>{body} https://example.test/a</p>"}):
+        assert unexpected not in finding_ids(result(subject=subject, **bodies))
+
+
+def test_request_contained_in_the_subject_alone_is_detected() -> None:
+    detector_result = result(subject="Reply with your password to keep access", text_body="See subject.")
+
+    assert "credential_secret_collection_request" in finding_ids(detector_result)
+
+
+def test_urgency_in_subject_still_combines_with_request_in_body() -> None:
+    detector_result = result(
+        subject="Urgent: your account will be suspended",
+        text_body="Please submit your password on the form.",
+    )
+
+    assert finding_ids(detector_result) == [
+        "credential_secret_collection_request",
+        "credential_urgent_account_threat",
+    ]
 
 
 def test_case_and_punctuation_variations_are_detected() -> None:

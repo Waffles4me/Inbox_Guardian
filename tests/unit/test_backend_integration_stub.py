@@ -338,7 +338,14 @@ def test_incomplete_preserves_positive_warning_contributions(monkeypatch) -> Non
 
 
 UI_VISIBLE_LIMITATIONS = 6
-INCOMPLETE_EXPLANATIONS = ("only the subject line", "No analyzable", "sender identity", "did not run")
+INCOMPLETE_EXPLANATIONS = (
+    "only the subject line",
+    "No analyzable",
+    "sender identity",
+    "did not run",
+    "forwarded content that was not assessed",
+    "only quoted or header-style lines",
+)
 
 
 def assert_incomplete_is_explained(body: dict[str, object]) -> None:
@@ -483,6 +490,151 @@ def test_duplicate_body_representations_do_not_inflate_contributions(monkeypatch
 
     assert (both["verdict"], both["risk_score"]) == (text_only["verdict"], text_only["risk_score"]) == ("SUSPICIOUS", 25)
     assert contribution_by_id(both) == contribution_by_id(text_only)
+
+
+FORWARD_MARKER = "---------- Forwarded message ---------"
+PHISHING_REQUEST = "To prevent account suspension, reply to this email with your password immediately."
+NOT_CHECKED_PREFIX = "Not checked: attachments, payment or financial-fraud requests and machine-learning (NLP)"
+
+
+def forwarded_email(own_text: str, forwarded_text: str) -> dict[str, str]:
+    return {
+        "subject": "Fwd: Notice",
+        "text_body": f"{own_text}\n\n{FORWARD_MARKER}\nFrom: Example <notice@example.test>\n\n{forwarded_text}\n",
+        "html_body": (
+            f'<div dir="ltr">{own_text}<br><br>{FORWARD_MARKER}<br>'
+            f"From: Example &lt;notice@example.test&gt;<br><br>{forwarded_text}</div>"
+        ),
+    }
+
+
+def visible_limitations(body: dict[str, object]) -> str:
+    return " ".join(body["limitations"][:UI_VISIBLE_LIMITATIONS])
+
+
+@pytest.mark.parametrize(
+    "forwarded_text",
+    ["Our autumn catalogue is out. Have a look when you can.", PHISHING_REQUEST],
+    ids=["benign-forward", "suspicious-forward"],
+)
+def test_forwarded_content_is_not_reported_clean_or_attributed_to_the_forwarder(monkeypatch, forwarded_text) -> None:
+    body = post_analyze(monkeypatch, **forwarded_email("FYI, is this real?", forwarded_text)).json()
+
+    assert_incomplete_is_explained(body)
+    assert body["findings"] == []
+    assert "forwarded content that was not assessed" in body["limitations"][1]
+
+
+def test_request_written_by_the_forwarder_is_scored_and_the_forward_is_disclosed(monkeypatch) -> None:
+    body = post_analyze(
+        monkeypatch,
+        **forwarded_email("Please reply to this email with your password so I can check.", "Our catalogue is out."),
+    ).json()
+
+    assert body["verdict"] == "SUSPICIOUS"
+    assert body["risk_score"] == 20
+    assert contribution_by_id(body) == {"credential_secret_collection_request": 20}
+    assert "forwarded content that was not assessed" in visible_limitations(body)
+
+
+def test_deceptive_link_in_forwarded_content_is_still_reported_with_the_gap_disclosed(monkeypatch) -> None:
+    email = forwarded_email("FYI", "Sign in here.")
+    email["html_body"] += GMAIL_SHAPED_DECEPTIVE_ANCHOR
+    body = post_analyze(monkeypatch, **email).json()
+
+    assert body["verdict"] == "SUSPICIOUS"
+    assert contribution_by_id(body) == {"url_deceptive_subdomain": 35}
+    assert "forwarded content that was not assessed" in visible_limitations(body)
+
+
+def test_quoted_reply_with_active_text_keeps_a_meaningful_verdict(monkeypatch) -> None:
+    body = post_analyze(
+        monkeypatch,
+        subject="Re: slides",
+        text_body=f"Thanks, I will bring the slides.\n\n> {PHISHING_REQUEST}",
+    ).json()
+
+    assert body["verdict"] == "NO_SIGNIFICANT_SIGNALS"
+    assert body["findings"] == []
+    assert any("Quoted reply lines" in limitation for limitation in body["limitations"])
+
+
+def test_body_of_only_quoted_lines_is_incomplete(monkeypatch) -> None:
+    body = post_analyze(monkeypatch, subject="Re: account", text_body=f"> {PHISHING_REQUEST}").json()
+
+    assert_incomplete_is_explained(body)
+    assert body["findings"] == []
+
+
+def test_non_ascii_token_header_is_rejected_as_unauthenticated(monkeypatch) -> None:
+    monkeypatch.setenv(API_TOKEN_ENV, "test-token")
+
+    response = client.post(
+        "/analyze",
+        content=b'{"schema_version":"1.0","email":{"subject":"Demo","from":"demo@example.test"}}',
+        headers=[(b"x-inboxguardian-token", b"caf\xe9"), (b"content-type", b"application/json")],
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid backend authentication."
+
+
+def test_findings_are_returned_strongest_first_with_contributions_preserved(monkeypatch) -> None:
+    body = post_analyze(
+        monkeypatch,
+        subject="Urgent account verification",
+        **{"from": "accounts.example.test <notice@attacker.test>"},
+        reply_to="desk@other-reply.test",
+        text_body=(
+            "Urgent: enter your password within 12 hours to avoid account suspension. "
+            "Ignore MFA security approval.\nhttp://192.0.2.9/a"
+        ),
+        html_body='<a href="https://login.attacker.test/form">https://accounts.example.test/login</a>',
+    ).json()
+
+    contributions = [finding["contribution"] for finding in body["findings"]]
+    assert contributions == sorted(contributions, reverse=True)
+    assert contributions[:4] == [30, 20, 20, 5]
+    assert [finding["id"] for finding in body["findings"][:3]] == [
+        "url_display_destination_mismatch",
+        "sender_display_domain_mismatch",
+        "credential_secret_collection_request",
+    ]
+    assert contribution_total(body) == body["risk_score"] == 80
+    assert body["verdict"] == "HIGH_RISK"
+
+
+@pytest.mark.parametrize(
+    "email",
+    [
+        {"text_body": "Lunch is at noon in the usual room."},
+        {"text_body": PHISHING_REQUEST},
+        {"subject": "Quarterly update", "text_body": "", "html_body": ""},
+    ],
+    ids=["clean", "suspicious", "incomplete"],
+)
+def test_planned_checks_that_did_not_run_are_named_in_the_visible_limitations(monkeypatch, email) -> None:
+    body = post_analyze(monkeypatch, **email).json()
+
+    assert NOT_CHECKED_PREFIX in visible_limitations(body)
+    assert len(body["limitations"]) == len(set(body["limitations"]))
+
+
+def test_absent_reply_to_adds_no_parser_note_but_real_parse_problems_do(monkeypatch) -> None:
+    clean = post_analyze(monkeypatch, reply_to="", text_body="Lunch is at noon.").json()
+    malformed_link = post_analyze(monkeypatch, text_body="Open https://example.test:badport/login").json()
+    malformed_sender = post_analyze(monkeypatch, **{"from": "not an address"}, text_body="Lunch is at noon.").json()
+
+    assert not any("Parser recorded" in limitation for limitation in clean["limitations"])
+    assert any("Parser recorded" in limitation for limitation in malformed_link["limitations"])
+    assert any("Parser recorded" in limitation for limitation in malformed_sender["limitations"])
+
+
+def test_recommended_action_text_carries_no_label_of_its_own(monkeypatch) -> None:
+    for email in ({"text_body": "Lunch is at noon."}, {"text_body": PHISHING_REQUEST}, {"subject": "", "text_body": ""}):
+        action = post_analyze(monkeypatch, **email).json()["recommended_action"]
+        assert not action.lower().startswith("recommended action")
+        assert "recommended action:" not in action.lower()
 
 
 def test_benign_security_notice_wording_is_not_flagged(monkeypatch) -> None:
