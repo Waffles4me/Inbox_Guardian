@@ -102,9 +102,8 @@ def parse_email_payload(payload: EmailPayload) -> ParsedEmail:
     html_parser.feed(payload.html_body)
     html_parser.close()
 
-    urls_seen: set[str] = set()
-    text_urls = _extract_text_urls(payload.text_body, urls_seen, issues)
-    html_links = _extract_html_links(html_parser.links, urls_seen, issues)
+    text_urls = _extract_text_urls(payload.text_body, issues)
+    html_links = _extract_html_links(html_parser.links, issues)
 
     html_visible_text = _collapse_space(" ".join(html_parser.visible_text_parts))
     if len(html_visible_text) > MAX_VISIBLE_TEXT_CHARS:
@@ -286,8 +285,9 @@ class _InertHtmlParser(HTMLParser):
         super().close()
 
 
-def _extract_text_urls(text: str, urls_seen: set[str], issues: list[ParseIssue]) -> list[ParsedUrl]:
+def _extract_text_urls(text: str, issues: list[ParseIssue]) -> list[ParsedUrl]:
     parsed: list[ParsedUrl] = []
+    urls_seen: set[tuple[str, str]] = set()
     for match in _TEXT_URL_RE.finditer(text):
         if len(parsed) >= MAX_URLS:
             issues.append(
@@ -308,10 +308,12 @@ def _extract_text_urls(text: str, urls_seen: set[str], issues: list[ParseIssue])
 
 def _extract_html_links(
     raw_links: list[tuple[str, str]],
-    urls_seen: set[str],
     issues: list[ParseIssue],
 ) -> list[ParsedHtmlLink]:
     parsed: list[ParsedHtmlLink] = []
+    # Anchors are deduplicated only against other anchors, and only when both the destination and the
+    # visible text match, so a URL repeated in the plain-text body cannot discard anchor evidence.
+    links_seen: set[tuple[str, str]] = set()
     for href, visible_text in raw_links:
         if len(parsed) >= MAX_URLS:
             issues.append(
@@ -323,14 +325,20 @@ def _extract_html_links(
             )
             break
         parsed_url = parse_url(href, EvidenceSource.HTML_BODY, issues)
-        if _is_duplicate(parsed_url, urls_seen, issues):
+        if _is_duplicate(parsed_url, links_seen, issues, visible_text=visible_text):
             continue
         parsed.append(ParsedHtmlLink(href=parsed_url, visible_text=visible_text))
     return parsed
 
 
-def _is_duplicate(parsed_url: ParsedUrl, urls_seen: set[str], issues: list[ParseIssue]) -> bool:
-    duplicate_key = parsed_url.canonical_url or f"{parsed_url.status}:{parsed_url.raw_url}"
+def _is_duplicate(
+    parsed_url: ParsedUrl,
+    urls_seen: set[tuple[str, str]],
+    issues: list[ParseIssue],
+    *,
+    visible_text: str = "",
+) -> bool:
+    duplicate_key = (parsed_url.canonical_url or f"{parsed_url.status}:{parsed_url.raw_url}", visible_text)
     if duplicate_key in urls_seen:
         issues.append(
             ParseIssue(

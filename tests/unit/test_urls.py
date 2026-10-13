@@ -207,6 +207,47 @@ def test_duplicate_url_evidence_produces_one_finding() -> None:
     assert finding_ids(detector_result) == ["url_ip_address_host"]
 
 
+def test_deceptive_anchor_triggers_when_destination_also_appears_in_text_body() -> None:
+    detector_result = result(
+        text_body="https://accounts.example.test\n<https://accounts.example.test.attacker.test/login>",
+        html_body='<a href="https://accounts.example.test.attacker.test/login">https://accounts.example.test</a>',
+    )
+
+    assert detector_result.status == DetectorStatus.TRIGGERED
+    assert finding_ids(detector_result) == ["url_deceptive_subdomain"]
+    assert detector_result.findings[0].evidence_sources == ("html_body",)
+
+
+def test_matching_url_in_text_and_html_bodies_does_not_trigger() -> None:
+    detector_result = result(
+        text_body="Sign in at https://accounts.example.test/login",
+        html_body='<a href="https://accounts.example.test/login">https://accounts.example.test/login</a>',
+    )
+
+    assert detector_result.status == DetectorStatus.NOT_TRIGGERED
+    assert detector_result.findings == ()
+
+
+def test_deceptive_anchor_triggers_after_generic_anchor_to_same_destination() -> None:
+    detector_result = result(
+        html_body='<a href="https://accounts.example.test.attacker.test/login">Sign in</a>'
+        '<a href="https://accounts.example.test.attacker.test/login">https://accounts.example.test</a>'
+    )
+
+    assert detector_result.status == DetectorStatus.TRIGGERED
+    assert finding_ids(detector_result) == ["url_deceptive_subdomain"]
+
+
+def test_same_url_repeated_across_sources_produces_one_finding() -> None:
+    detector_result = result(
+        text_body="http://192.0.2.10/a http://192.0.2.10/a",
+        html_body='<a href="http://192.0.2.10/a">Status</a><a href="http://192.0.2.10/a">Status page</a>',
+    )
+
+    assert detector_result.status == DetectorStatus.TRIGGERED
+    assert finding_ids(detector_result) == ["url_ip_address_host"]
+
+
 def test_sensitive_query_parameter_is_not_exposed_in_observation() -> None:
     detector_result = result(
         html_body='<a href="https://different.example.test/login?token=secret">'

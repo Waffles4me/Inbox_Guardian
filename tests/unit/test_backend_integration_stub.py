@@ -3,8 +3,10 @@ from fastapi.testclient import TestClient
 
 from backend.app import main
 from backend.app.detectors.credentials import detect_credential_phishing_context
-from backend.app.engine import DetectorRunner
+from backend.app.engine import DetectorRunner, analyze_with_detectors
 from backend.app.main import API_TOKEN_ENV, app
+from backend.app.models import EmailPayload
+from backend.app.scoring import score_engine_result
 
 
 client = TestClient(app)
@@ -224,6 +226,79 @@ def test_multi_signal_scenario_can_return_high_risk(monkeypatch) -> None:
         "credential_request_with_link": 0,
     }
     assert contribution_total(body) == 75
+
+
+GMAIL_SHAPED_CREDENTIAL_TEXT = (
+    "Your account requires immediate verification.\n\n"
+    "To prevent account suspension, reply to this email with your password and your six-digit verification code.\n\n"
+    "Do not use the normal login page. Complete this verification immediately.\n\n"
+)
+GMAIL_SHAPED_DECEPTIVE_ANCHOR = (
+    '<a href="https://accounts.example.test.attacker.test/login">https://accounts.example.test</a>'
+)
+GMAIL_SHAPED_TEXT_LINK = "https://accounts.example.test\n<https://accounts.example.test.attacker.test/login>\n"
+
+
+def gmail_shaped_email(*, credential_text: str = GMAIL_SHAPED_CREDENTIAL_TEXT, repeat: int = 1) -> dict[str, str]:
+    return {
+        "subject": "Urgent Account Verification",
+        "text_body": credential_text + GMAIL_SHAPED_TEXT_LINK * repeat,
+        "html_body": (
+            '<div dir="ltr">'
+            + credential_text.replace("\n\n", "<br><br>")
+            + GMAIL_SHAPED_DECEPTIVE_ANCHOR * repeat
+            + "</div>"
+        ),
+    }
+
+
+def test_gmail_shaped_deceptive_link_with_credential_request_is_high_risk(monkeypatch) -> None:
+    response = post_analyze(monkeypatch, **gmail_shaped_email())
+
+    body = response.json()
+    contributions = contribution_by_id(body)
+    assert response.status_code == 200
+    assert body["verdict"] == "HIGH_RISK"
+    assert body["risk_score"] == 60
+    assert contributions["url_deceptive_subdomain"] == 35
+    assert contributions["credential_request_with_link"] == 0
+    assert sum(value for key, value in contributions.items() if key.startswith("credential_")) == 25
+    assert [finding["id"] for finding in body["findings"]].count("url_deceptive_subdomain") == 1
+    assert contribution_total(body) == 60
+    assert "avoid clicking email links" in body["recommended_action"]
+    assert "do not submit passwords" in body["recommended_action"]
+
+
+def test_gmail_shaped_url_and_credential_evidence_are_independent(monkeypatch) -> None:
+    monkeypatch.setenv(API_TOKEN_ENV, "test-token")
+    email = analyze_payload(**gmail_shaped_email())["email"]
+    scoring_result = score_engine_result(analyze_with_detectors(EmailPayload.model_validate(email)))
+    assert scoring_result.independent_evidence_families == ("url_deception", "credential_context")
+
+    url_only = post_analyze(monkeypatch, **gmail_shaped_email(credential_text="Routine project update.\n\n")).json()
+    assert url_only["verdict"] == "SUSPICIOUS"
+    assert url_only["risk_score"] == 35
+    assert finding_ids(url_only) == {"url_deceptive_subdomain"}
+
+    credential_only = post_analyze(
+        monkeypatch,
+        subject="Urgent Account Verification",
+        text_body=GMAIL_SHAPED_CREDENTIAL_TEXT + "https://accounts.example.test/login\n",
+        html_body='<a href="https://accounts.example.test/login">https://accounts.example.test/login</a>',
+    ).json()
+    assert credential_only["verdict"] == "SUSPICIOUS"
+    assert credential_only["risk_score"] == 25
+    assert not any(finding_id.startswith("url_") for finding_id in finding_ids(credential_only))
+
+
+def test_repeated_gmail_shaped_link_does_not_inflate_score(monkeypatch) -> None:
+    single = post_analyze(monkeypatch, **gmail_shaped_email()).json()
+    repeated = post_analyze(monkeypatch, **gmail_shaped_email(repeat=10)).json()
+
+    assert repeated["risk_score"] == single["risk_score"] == 60
+    assert repeated["verdict"] == "HIGH_RISK"
+    assert contribution_by_id(repeated) == contribution_by_id(single)
+    assert len(repeated["findings"]) == len(single["findings"])
 
 
 def test_insufficient_information_uses_placeholder_score(monkeypatch) -> None:

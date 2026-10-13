@@ -154,6 +154,65 @@ def test_duplicate_urls_are_omitted_only_after_exact_canonical_match() -> None:
     assert "url_duplicate_omitted" in issue_codes(parsed)
 
 
+def test_html_anchor_is_preserved_when_destination_also_appears_in_text_body() -> None:
+    parsed = parse_email_payload(
+        payload(
+            text_body=(
+                "Review your account:\n"
+                "https://accounts.example.test\n"
+                "<https://accounts.example.test.attacker.test/login>\n"
+            ),
+            html_body='<a href="https://accounts.example.test.attacker.test/login">https://accounts.example.test</a>',
+        )
+    )
+
+    assert [url.hostname for url in parsed.text_urls] == [
+        "accounts.example.test",
+        "accounts.example.test.attacker.test",
+    ]
+    assert len(parsed.html_links) == 1
+    assert parsed.html_links[0].href.status == ParseStatus.PRESENT
+    assert parsed.html_links[0].href.hostname == "accounts.example.test.attacker.test"
+    assert parsed.html_links[0].visible_text == "https://accounts.example.test"
+    assert "url_duplicate_omitted" not in issue_codes(parsed)
+
+
+def test_html_anchors_with_same_destination_and_different_text_are_both_preserved() -> None:
+    generic = '<a href="https://accounts.example.test.attacker.test/login">Sign in</a>'
+    claimed = '<a href="https://accounts.example.test.attacker.test/login">https://accounts.example.test</a>'
+
+    first_order = parse_email_payload(payload(html_body=generic + claimed))
+    second_order = parse_email_payload(payload(html_body=claimed + generic))
+
+    assert [link.visible_text for link in first_order.html_links] == ["Sign in", "https://accounts.example.test"]
+    assert [link.visible_text for link in second_order.html_links] == ["https://accounts.example.test", "Sign in"]
+    assert "url_duplicate_omitted" not in issue_codes(first_order)
+    assert "url_duplicate_omitted" not in issue_codes(second_order)
+
+
+def test_identical_html_anchors_are_still_deduplicated() -> None:
+    anchor = '<a href="https://example.test/login">Sign   in</a>'
+    same_after_normalization = '<a href="HTTPS://EXAMPLE.TEST/login"> Sign in </a>'
+    parsed = parse_email_payload(payload(html_body=anchor + same_after_normalization + anchor))
+
+    assert len(parsed.html_links) == 1
+    assert parsed.html_links[0].visible_text == "Sign in"
+    assert "url_duplicate_omitted" in issue_codes(parsed)
+
+
+def test_html_link_count_bound_is_enforced_deterministically() -> None:
+    body = "".join(
+        f'<a href="https://example.test/{index}">Link {index}</a>' for index in range(MAX_URLS + 5)
+    )
+    text = " ".join(f"https://example.test/{index}" for index in range(MAX_URLS + 5))
+    parsed = parse_email_payload(payload(text_body=text, html_body=body))
+
+    assert len(parsed.text_urls) == MAX_URLS
+    assert len(parsed.html_links) == MAX_URLS
+    assert parsed.html_links[-1].href.path == f"/{MAX_URLS - 1}"
+    assert "url_count_limit_reached" in issue_codes(parsed)
+
+
 def test_url_length_bound_marks_overlong_url_malformed() -> None:
     parsed = parse_email_payload(payload(text_body="https://example.test/" + "a" * MAX_URL_LENGTH))
 
