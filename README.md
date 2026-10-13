@@ -4,7 +4,7 @@ InboxGuardian is a 48-hour Upwind Security home-assignment project: a Gmail Add-
 
 The assignment requires a Google Workspace Gmail Add-on, a backend service the add-on can call, a clear maliciousness score/verdict/reasoning shown to the user, a public source repository, and a live demonstration against a real Gmail account. The full assignment brief is intentionally not published in this repository.
 
-Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. WBS 2.1 safe parsing/normalization, WBS 2.2 sender detection, WBS 2.3 deceptive URL detection, WBS 2.4 credential-context detection, internal detector orchestration, and Method C v1 internal scoring are implemented with synthetic tests. The backend still returns `DEMO / NOT ANALYZED`; no real security assessment is exposed through Gmail yet.
+Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. WBS 2.1 safe parsing/normalization, WBS 2.2 sender detection, WBS 2.3 deceptive URL detection, WBS 2.4 credential-context detection, internal detector orchestration, Method C v1 scoring, and backend `/analyze` response mapping are implemented with synthetic tests. The Gmail CardService UI still contains demo-specific wording and has not yet been adapted to present real scores.
 
 ## Scope
 
@@ -14,7 +14,7 @@ Current status: Gmail-to-backend integration proof of concept is complete. The u
 - Method C v1 internal scoring is implemented: evidence deduplication, per-family caps, fixed heuristic weights, approved thresholds, coverage handling, and zero correlation bonus.
 - Explainable 0-100 heuristic risk index, verdict, evidence, limitations, and recommended action.
 - No LLM analysis, malware execution, URL fetching, auto-quarantine, or background scanning in the MVP.
-- Implemented detector findings and scored internal results are not connected to `/analyze` or the Gmail UI.
+- Implemented detector findings and scored results are connected to backend `/analyze`; the Gmail UI still needs a separate CardService update before claiming end-to-end real-score display.
 
 ## Repository Layout
 
@@ -57,7 +57,7 @@ Test command:
 py -m pytest
 ```
 
-The current `/analyze` endpoint requires `X-InboxGuardian-Token` and returns a clearly labelled `DEMO / NOT ANALYZED` response only. It does not perform threat detection.
+The current `/analyze` endpoint requires `X-InboxGuardian-Token`, runs the parser, implemented detectors and Method C v1 scorer, and returns a bounded heuristic result. The score is not a probability. For `INCOMPLETE`, `risk_score` is a required-schema placeholder and limitations state that no meaningful score was produced.
 
 For local testing, set the backend token outside Git:
 
@@ -103,24 +103,22 @@ Minimal request:
 }
 ```
 
-Current response is intentionally incomplete:
+Example low-observed-risk response:
 
 ```json
 {
   "schema_version": "1.0",
   "risk_score": 0,
   "score_type": "heuristic_risk_index_not_probability",
-  "verdict": "INCOMPLETE",
-  "findings": [
-    {
-      "id": "demo_not_analyzed",
-      "severity": "info",
-      "title": "DEMO / NOT ANALYZED"
-    }
+  "verdict": "NO_SIGNIFICANT_SIGNALS",
+  "findings": [],
+  "limitations": [
+    "attachment_metadata is planned but not implemented; it contributed 0 points.",
+    "financial_fraud is planned but not implemented; it contributed 0 points.",
+    "nlp_phishing is planned but not implemented; it contributed 0 points."
   ],
-  "limitations": ["Threat detection is not implemented yet."],
-  "recommended_action": "Do not use this demo response as a security assessment.",
-  "detector_version": "stub-0.1.0"
+  "recommended_action": "No significant indicators were observed by the checks that ran. This does not guarantee the message is safe; continue using normal caution with links, attachments, and unusual requests.",
+  "detector_version": "engine-0.1.0+scoring-0.1.0"
 }
 ```
 
@@ -139,11 +137,16 @@ Verified on 2026-10-12:
 - Gmail displayed the selected email subject and sender.
 - Clicking **Analyze Email** reached FastAPI through ngrok and displayed the expected `DEMO / NOT ANALYZED` response.
 
+Backend update on 2026-10-13:
+
+- `/analyze` now returns real parser -> engine -> scorer results in the existing response schema.
+- The existing Gmail UI source was intentionally not changed; it may still show demo-specific labels until the next CardService milestone.
+
 Still required:
 
 1. Make startup/shutdown repeatable for backend and ngrok.
 2. Keep backend auth material in environment variables and Apps Script Properties only.
-3. Replace the demo response with real evidence-based analysis after detector tests are in place.
+3. Replace the Gmail result card's demo wording with real score, verdict, evidence and limitation display.
 
 ## Apps Script Local Sync
 
@@ -192,9 +195,9 @@ Useful official docs:
 - Whether to add a small local startup helper after the manual startup flow remains stable.
 - Add-on-to-backend authentication rotation/replacement if the project grows beyond a single-user prototype.
 - Sensitive logging/redaction rules for future detector output.
-- Public response mapping from internal engine/scoring output to the existing `/analyze` schema.
+- Gmail CardService presentation of the backend's real scored response.
 - Whether authentication metadata can be trusted from available Gmail/Add-on data.
 
 ## Validation Status
 
-Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Automated tests cover the backend/add-on source contract, internal parser, internal detectors, internal detector orchestration, and internal scoring. Do not claim detection accuracy until public response mapping, fixtures, and evaluation are implemented.
+Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Automated tests cover the backend/add-on source contract, internal parser, internal detectors, internal detector orchestration, internal scoring, and backend response mapping. Do not claim detection accuracy until fixture evaluation and Gmail real-result presentation are implemented.

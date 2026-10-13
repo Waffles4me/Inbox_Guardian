@@ -1,15 +1,15 @@
 # InboxGuardian - Detection Contract
 
 > **Version:** Draft 0.1 - 2026-10-13
-> **Status:** Six-detector scope and **Method C v1 scoring implemented internally**; parser, three core detectors, orchestration and scoring exist; public `/analyze` still returns demo output
+> **Status:** Six-detector scope and **Method C v1 scoring wired to backend `/analyze`**; parser, three core detectors, orchestration, scoring and response mapping exist; Gmail UI adaptation remains pending
 > **Source of truth:** [`PROJECT_OBJECTIVE.md`](../PROJECT_OBJECTIVE.md) and [`WBS.md`](../WBS.md)
 > **Purpose:** Specify testable evidence, input availability, detector outcomes, scoring semantics, and acceptance criteria without changing the working Gmail integration.
 
-> **Implementation note:** WBS 2.1 parser, WBS 2.2 sender detector, WBS 2.3 URL detector, WBS 2.4 credential-context detector, internal orchestration and Method C v1 scoring now exist, but no detector or scorer is wired into the public `/analyze` endpoint. The latest automated run passed **132 tests, 2 warnings** on 2026-10-13.
+> **Implementation note:** WBS 2.1 parser, WBS 2.2 sender detector, WBS 2.3 URL detector, WBS 2.4 credential-context detector, internal orchestration, Method C v1 scoring and backend response mapping now exist. The latest automated run passed **145 tests, 2 warnings** on 2026-10-13.
 
 ## 1. Baseline and change boundary
 
-The **manually verified** flow is Gmail opened message -> Apps Script (`addon/Code.js`) -> ngrok HTTPS -> authenticated FastAPI `POST /analyze` -> Gmail CardService. The backend currently returns `INCOMPLETE` with **`DEMO / NOT ANALYZED`**, `detector_version: stub-0.1.0`; no real detector or risk scorer is exposed through this endpoint. The last reported automated run passed **13 tests, 2 warnings** on 2026-10-12; this contract creation did **not** rerun those tests. The live Gmail flow was also manually reconfirmed by the user on 2026-10-13.
+The **manually verified** flow is Gmail opened message -> Apps Script (`addon/Code.js`) -> ngrok HTTPS -> authenticated FastAPI `POST /analyze` -> Gmail CardService. The backend `/analyze` endpoint now returns real parser -> engine -> scorer output in the existing schema. The Gmail CardService UI source was not changed in this backend integration and may still display demo-specific text until the next UI milestone. The live Gmail flow was manually reconfirmed by the user earlier on 2026-10-13, before this backend response-mapping change.
 
 Preserve `POST /analyze`, `GET /health`, `X-InboxGuardian-Token`, Apps Script project, current OAuth scopes, and request/response schema version `1.0` during the initial engine work. Do not deploy or rewrite the Add-on as part of the first parser milestone. Treat any future API/schema, Gmail permission, hosting, or ML dependency change as a separately reviewed decision.
 
@@ -17,9 +17,9 @@ Preserve `POST /analyze`, `GET /health`, `X-InboxGuardian-Token`, Apps Script pr
 
 | ID | Detector family | Approved | Data needed | First implementation priority |
 |---|---|---|---|---|
-| `sender_identity` | Sender impersonation | Yes; implemented internally, not exposed through `/analyze` | `from`, `reply_to`, optional corroborating subject/body | Core |
-| `url_deception` | Deceptive URLs | Yes; implemented internally, not exposed through `/analyze` | `text_body`, `html_body`, optionally sender | Core |
-| `credential_context` | Credential phishing | Yes; implemented internally, not exposed through `/analyze` | `subject`, `text_body`, safely extracted visible HTML text, optional link evidence | Core |
+| `sender_identity` | Sender impersonation | Yes; implemented and exposed through backend `/analyze` | `from`, `reply_to`, optional corroborating subject/body | Core |
+| `url_deception` | Deceptive URLs | Yes; implemented and exposed through backend `/analyze` | `text_body`, `html_body`, optionally sender | Core |
+| `credential_context` | Credential phishing | Yes; implemented and exposed through backend `/analyze` | `subject`, `text_body`, safely extracted visible HTML text, optional link evidence | Core |
 | `attachment_metadata` | Suspicious attachments | Yes; not implemented | filename, MIME/content type, size from trustworthy message API access | Later deterministic increment; blocked on actual data collection |
 | `financial_fraud` | Payment redirection / financial fraud | Yes; not implemented | subject/body and independent identity/link context | Later deterministic increment; cannot establish historical changes |
 | `nlp_phishing` | NLP phishing classifier (TF-IDF + logistic regression candidate) | Yes; not implemented | labeled training/evaluation data, bounded subject/body | Experimental increment, evaluated before score integration |
@@ -144,7 +144,7 @@ The example contribution of `0` intentionally avoids prematurely agreeing a scor
 
 **Illustrative shape only (not executable or calibrated):** `risk_score = min(100, sum(capped_unique_family_contributions) + justified_distinct_evidence_adjustment)`. Contribution bookkeeping must explain deductions from deduplication, category caps and correlation adjustments without double counting. No specific numerical values are approved by this equation.
 
-**Implemented Method C v1 policy:** approved finding weights, family caps, thresholds, zero correlation bonus and coverage rules are recorded in [`docs/scoring-policy.md`](scoring-policy.md). The scorer is internal and not yet exposed through Gmail.
+**Implemented Method C v1 policy:** approved finding weights, family caps, thresholds, zero correlation bonus and coverage rules are recorded in [`docs/scoring-policy.md`](scoring-policy.md). The scorer is exposed through backend `/analyze`; Gmail presentation is not yet adapted.
 
 **Required invariants for the eventual scorer:**
 
@@ -172,9 +172,9 @@ AnalyzeResponse:
   detector_version: str
 ```
 
-The current Gmail card hardcodes `DEMO / NOT ANALYZED` and does not yet display a real risk index. In a **later**, separate, tested UI milestone: show score (when meaningful), verdict, up to 2-4 informative findings where available, limitations/unknowns, and a concrete user action. If fewer than two meaningful findings exist, show fewer; **do not fabricate findings to fill the UI**. Escape all backend-provided text before passing it to CardService HTML-enabled text widgets. Only remove demo labels once the backend really analyzes input and contract tests pass.
+The current Gmail card hardcodes `DEMO / NOT ANALYZED` and does not yet reliably display the backend's real risk index. In a **later**, separate, tested UI milestone: show score (when meaningful), verdict, up to 2-4 informative findings where available, limitations/unknowns, and a concrete user action. If fewer than two meaningful findings exist, show fewer; **do not fabricate findings to fill the UI**. Escape all backend-provided text before passing it to CardService HTML-enabled text widgets. Only remove demo labels once the Gmail UI is updated and manually verified.
 
-Expected HTTP behavior should remain: `/health` 200; authenticated well-formed request 200 with validated result; missing/wrong token 401; unconfigured server token 503; invalid input 422; operational failures produce bounded sanitized errors rather than sensitive stack traces. Do not claim that status codes fully describe the operational security posture.
+Expected HTTP behavior should remain: `/health` 200; authenticated well-formed request 200 with validated result; missing/wrong token 401; unconfigured server token 503; invalid input 422; unexpected analysis failures return bounded sanitized HTTP 500 errors rather than successful low-risk assessments or sensitive stack traces. Do not claim that status codes fully describe the operational security posture.
 
 ## 7. Evidence expectations per detector
 
@@ -253,7 +253,7 @@ A real Gmail account must show a suspicious/high-risk synthetic example, a benig
 
 ## 9. Open decisions requiring explicit approval before public scoring integration
 
-1. **Public scoring integration:** how to serialize internal `ScoringResult` into the existing `AnalyzeResponse` schema while keeping explanations concise and honest.
+1. **Gmail result presentation:** how to render the backend's real scored response in the existing CardService interface without demo wording.
 2. **Attachment availability:** whether/how to collect metadata with existing Gmail scopes, and how to distinguish uncollected from absent, without downloading binaries.
 3. **NLP go/no-go:** available legally usable representative labeled dataset, reproducible training and actual incremental performance; model output may remain informational if evidence is weak.
 4. **Response extension:** whether a later API version needs explicit per-detector statuses, coverage and score-reconciliation fields; do not alter `1.0` without review.
@@ -261,6 +261,6 @@ A real Gmail account must show a suspicious/high-risk synthetic example, a benig
 
 ## 10. First bounded implementation milestone and handoff
 
-**Next Codex task:** implement the smallest reviewed `/analyze` response-mapping slice that turns internal engine + scoring output into a real backend result while preserving authentication, schema version `1.0`, and Gmail safety boundaries. Keep the Gmail Add-on source unchanged until backend response behavior is separately verified. Avoid new network access, Gmail scopes, model training, deploys, or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and existing integration regressions. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
+**Next Codex task:** update the existing Gmail CardService result view to display the backend's real score, verdict, findings, limitations and recommended action, then manually verify it through the live Gmail -> ngrok -> FastAPI flow. Keep scope backend/UI presentation only; do not add detector families, new Gmail scopes, model training, deploys or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and manual Gmail evidence. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
 
-**Gate for this document:** Internal scoring is implemented and tested, but public detection is not deployed. G2 is not complete until `/analyze` returns real scored results and Gmail renders them through the existing authenticated flow.
+**Gate for this document:** Backend `/analyze` now returns real scored results, but G2 is not complete until Gmail renders them through the existing authenticated flow.

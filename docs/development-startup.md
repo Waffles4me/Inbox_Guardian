@@ -8,7 +8,7 @@ Current flow:
 Gmail Add-on -> ngrok HTTPS -> 127.0.0.1:8000 -> FastAPI
 ```
 
-The backend still returns `DEMO / NOT ANALYZED`. It verifies connectivity only and is not a security assessment.
+The backend now returns real parser -> detector engine -> Method C scorer results. The Gmail CardService UI has not yet been adapted and may still contain demo-specific wording.
 
 ## Prerequisites
 
@@ -111,7 +111,7 @@ Invoke-RestMethod `
   -Body '{"schema_version":"1.0","email":{"subject":"Demo","from":"demo@example.test"}}'
 ```
 
-Expected result: `verdict` is `INCOMPLETE` and the first finding title is `DEMO / NOT ANALYZED`.
+Expected result: a schema `1.0` response with `score_type` set to `heuristic_risk_index_not_probability`. For this minimal example, the verdict may be `NO_SIGNIFICANT_SIGNALS` if enough basic evidence is present or `INCOMPLETE` if the payload is too sparse.
 
 ## Confirm Apps Script Properties
 
@@ -136,7 +136,7 @@ https://script.google.com/home/projects/1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGb
 3. Open InboxGuardian from the Gmail side panel.
 4. Confirm the card shows the selected email subject and sender.
 5. Click **Analyze Email**.
-6. Confirm the result is clearly marked `DEMO / NOT ANALYZED`.
+6. Confirm the backend call completes. The current Gmail result card may still use demo wording until the CardService UI is updated in the next milestone.
 
 This is a manual integration check. It is not covered by automated tests.
 

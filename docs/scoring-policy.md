@@ -1,10 +1,10 @@
 # InboxGuardian - Method C v1 Scoring Policy
 
-> **Status:** APPROVED AND IMPLEMENTED INTERNALLY / NOT WIRED TO `/analyze`
+> **Status:** APPROVED, IMPLEMENTED AND WIRED TO BACKEND `/analyze`
 > **Date:** 2026-10-13
 > **Scope:** Initial scoring specification for the three implemented internal detector families only: sender identity, URL deception and credential context.
 
-This document records the approved deterministic Method C v1 scoring policy implemented in `backend/app/scoring.py` and tested in `tests/unit/test_scoring.py`. It does not change `/analyze`, Gmail UI, public response schema, detector code or authentication behavior; public endpoint integration remains a separate milestone.
+This document records the approved deterministic Method C v1 scoring policy implemented in `backend/app/scoring.py`, tested in `tests/unit/test_scoring.py`, and mapped into the backend `/analyze` response by `backend/app/main.py`. It does not change the Gmail UI, public response schema, detector code or authentication behavior; Gmail presentation remains a separate milestone.
 
 ## Method C Summary
 
@@ -144,4 +144,11 @@ Examples that should **not** be enough for high risk by themselves:
 - `ScoredFinding`: original immutable detector finding plus approved weight, effective contribution, counted flag and accounting note.
 - `FamilyScore`: raw points, capped points, cap and per-family limitations.
 
-The scorer consumes `EngineResult`, not raw `EmailPayload`, and preserves public `AnalyzeResponse` schema version `1.0` for a later serializer. The scorer does not mutate engine input objects and does not fetch URLs, execute HTML, retrieve attachments or use external services.
+The scorer consumes `EngineResult`, not raw `EmailPayload`, and the backend serializer preserves public `AnalyzeResponse` schema version `1.0`. The scorer does not mutate engine input objects and does not fetch URLs, execute HTML, retrieve attachments or use external services.
+
+Backend `/analyze` mapping:
+
+- Returns `risk_score`, `verdict`, scored detector findings, limitations, recommended action and `detector_version`.
+- Uses `risk_score: 0` as the required-schema placeholder for `INCOMPLETE`, with an explicit limitation that no meaningful score was produced.
+- Preserves contribution reconciliation for completed assessments by mapping effective scored contributions into public findings.
+- Does not alter Gmail CardService presentation; the existing add-on UI still needs a separate update before claiming real-score display.

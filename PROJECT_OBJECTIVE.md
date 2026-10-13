@@ -1,6 +1,6 @@
 ﻿# InboxGuardian â€” Project Objective & Agent Operating Guide
 
-> **Status:** Gmail-to-backend integration reconfirmed 2026-10-13; WBS 2.4 credential-context detector implemented internally; live threat output pending
+> **Status:** Backend `/analyze` now returns Method C v1 scored results; Gmail UI real-result presentation pending
 > **Last updated:** 2026-10-13
 > **Assignment:** Upwind Security â€” Security Analyst Home Assignment
 > **Delivery constraint:** 48-hour focused development window, with a working live Gmail demonstration as the primary milestone.
@@ -21,7 +21,7 @@ This question motivates the project; a 48-hour prototype cannot establish genera
 1. **Upwind's supplied assignment** (`UPWIND_HOME_ASSIGNMENT.md`) is authoritative for external requirements.
 2. **This document** defines agreed project scope, implementation constraints, decisions, and session status.
 3. **`WBS.md`** defines ordered implementation work and acceptance gates.
-4. **[`docs/detection-contract.md`](docs/detection-contract.md)** defines the current six-detector target, data/evidence interfaces, unknowns, test gates, and internal Method C scoring semantics. Public response mapping remains open pending review.
+4. **[`docs/detection-contract.md`](docs/detection-contract.md)** defines the current six-detector target, data/evidence interfaces, unknowns, test gates, Method C scoring semantics and backend response mapping. Gmail UI presentation remains open pending review.
 5. Code and tests show what is actually implemented. Where code diverges from this guide, **report the discrepancy**; do not silently rewrite requirements to fit code.
 6. The local project directory is the development source of truth. GitHub is the remote version-controlled repository once synchronization is verified.
 
@@ -83,13 +83,13 @@ These rules are mandatory for every current and future coding agent, including C
 
 ## Approved Threat Detection Scope
 
-This project has exactly **six approved threat detectors**. As of 2026-10-13, sender identity, deceptive URL, and credential-context detectors are implemented internally and can be run by the internal orchestration layer; the current backend `/analyze` endpoint still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response. The approved scope below is therefore the implementation target for WBS 2 and later validation work, not evidence of live Gmail detection capability.
+This project has exactly **six approved threat detectors**. As of 2026-10-13, sender identity, deceptive URL, and credential-context detectors are implemented and wired through backend `/analyze` via the internal orchestration layer and Method C v1 scorer. Attachment metadata, financial fraud and NLP remain planned/unavailable. The Gmail CardService UI still needs a separate update before claiming real-score display in Gmail.
 
 The six detectors should share a common evidence model: each finding must include a stable ID, severity, observable evidence, interpretation, contribution to the heuristic risk index, known limitations, and likely benign explanations where relevant.
 
 ### 1. Sender Impersonation
 
-- **Status:** Implemented internally; not wired into `/analyze`.
+- **Status:** Implemented and wired into backend `/analyze`.
 - **Purpose:** Detect suspicious sender identities that may misrepresent an individual, brand, service, or organization.
 - **Threat or attack technique addressed:** Brand impersonation, executive impersonation, supplier impersonation, reply-to redirection, and lookalike-domain social engineering.
 - **Observable indicators:** Display-name and address mismatch, sender name claiming a known service while using an unrelated domain, Reply-To domain different from From domain, visually similar domains, unusual subdomains, and non-obvious free-mail or delegated senders.
@@ -99,7 +99,7 @@ The six detectors should share a common evidence model: each finding must includ
 
 ### 2. Deceptive URLs
 
-- **Status:** Implemented internally; not wired into `/analyze`.
+- **Status:** Implemented and wired into backend `/analyze`.
 - **Purpose:** Identify misleading or suspicious hyperlinks without visiting them.
 - **Threat or attack technique addressed:** Link deception, credential-harvesting links, misleading display text, malicious-looking redirects, and suspicious URL construction.
 - **Observable indicators:** Displayed URL or domain differs from destination host, link text claims one brand/domain while `href` points elsewhere, IP-address hosts, suspiciously deep or noisy subdomains, URL shorteners or redirect-looking paths, punycode/unicode lookalikes, and credential-themed paths.
@@ -109,7 +109,7 @@ The six detectors should share a common evidence model: each finding must includ
 
 ### 3. Credential-Phishing Context
 
-- **Status:** Implemented internally; not wired into `/analyze`.
+- **Status:** Implemented and wired into backend `/analyze`.
 - **Purpose:** Detect attempts to obtain passwords, login approvals, MFA/OTP codes, or authentication actions.
 - **Threat or attack technique addressed:** Credential phishing, account takeover preparation, MFA fatigue or OTP theft, and urgent fake verification workflows.
 - **Observable indicators:** Requests to enter or reset passwords, verify account access, provide MFA/OTP/security codes, click login or document-access links, act under deadline pressure, avoid normal channels, or ignore prior security warnings.
@@ -190,7 +190,7 @@ InboxGuardian intentionally does **not** attempt complete protection against all
 8. False positives and false negatives must be measured using labeled test cases; do not invent accuracy, precision, recall, or readiness claims.
 9. Detection logic must remain separate from the Gmail add-on UI so backend parsing, detection, scoring, and API serialization can be tested independently.
 10. No detector should be described as production-ready without supporting evaluation evidence.
-11. **Implemented internal scorer (2026-10-13): Method C v1 â€” correlation-aware, category-capped deterministic evidence scoring.** Deduplicate overlapping observations across rules/families, cap each family's credited contribution, use a zero correlation bonus, and require independent evidence for `HIGH_RISK`. NLP classification remains outside the combined heuristic score pending separate evaluation. Public `/analyze` response mapping is not implemented yet. See `docs/scoring-policy.md`.
+11. **Implemented scorer (2026-10-13): Method C v1 â€” correlation-aware, category-capped deterministic evidence scoring.** Deduplicate overlapping observations across rules/families, cap each family's credited contribution, use a zero correlation bonus, and require independent evidence for `HIGH_RISK`. NLP classification remains outside the combined heuristic score pending separate evaluation. Backend `/analyze` maps this result into schema `1.0`; Gmail UI presentation is still pending. See `docs/scoring-policy.md`.
 12. Recommended response labels remain `HIGH_RISK`, `SUSPICIOUS`, `NO_SIGNIFICANT_SIGNALS`, and `INCOMPLETE`.
 12. Limit first-version linguistic analysis to English-language body/context heuristics, while URL and sender structural parsing should not assume ASCII-only inputs.
 
@@ -225,7 +225,7 @@ Python 3 / FastAPI backend (reachable by Apps Script)
 Gmail Add-on results card (no external UI required)
 ```
 
-**Implementation status:** The basic Gmail-to-backend vertical slice has been manually verified: opened Gmail message -> Apps Script Gmail Add-on -> ngrok HTTPS -> local FastAPI -> JSON response -> Gmail card. Parser, three core detectors, orchestration and internal scoring are implemented, but the backend response remains `DEMO / NOT ANALYZED` until a separate response-mapping milestone. No persistent database is necessary for the first version; process on demand and avoid storing email content.
+**Implementation status:** The basic Gmail-to-backend vertical slice has been manually verified: opened Gmail message -> Apps Script Gmail Add-on -> ngrok HTTPS -> local FastAPI -> JSON response -> Gmail card. Parser, three core detectors, orchestration, Method C v1 scoring and backend `/analyze` response mapping are implemented. The Gmail result card still needs a separate update because its source contains demo-specific presentation text. No persistent database is necessary for the first version; process on demand and avoid storing email content.
 
 **Practical priorities:** preserve the verified proof-of-connectivity while implementing real parsing/detection behind the existing `/analyze` contract. The backend must be reachable from Google's servers: `localhost` alone is not sufficient for live Apps Script integration. The current local development path uses ngrok HTTPS forwarding to `127.0.0.1:8000`; avoid publicly exposing unauthenticated analysis endpoints. Do not rely on Google Cloud verification/public Marketplace launch as part of the 48-hour MVP. Verify any future Gmail scope changes against current Google docs; do not assume access to all inbox content.
 
@@ -351,8 +351,8 @@ Responsibilities:
 - `parsing.py` normalizes existing validated input and extracts structural evidence. It does not decide maliciousness.
 - `detectors/*.py` implement independent detector logic. Each detector receives normalized data and returns structured internal evidence; detectors do not calculate final email risk.
 - `detectors/base.py` defines the shared internal detector-result contract, statuses, finding shape and evidence conventions.
-- `engine.py` orchestrates parser/detector execution internally and preserves evidence for future scoring. It is not wired into `/analyze` yet.
-- `scoring.py` implements internal Method C v1: approved finding weights, evidence deduplication, detector-family caps, zero correlation bonus, coverage handling and internal verdict mapping. It is not wired into `/analyze` yet.
+- `engine.py` orchestrates parser/detector execution for `/analyze` and preserves evidence for scoring.
+- `scoring.py` implements Method C v1: approved finding weights, evidence deduplication, detector-family caps, zero correlation bonus, coverage handling and internal verdict mapping used by `/analyze`.
 - `main.py` remains the HTTP layer for authentication, validation, endpoint behavior and public response serialization.
 - `addon/Code.js` remains the Gmail-facing UI/client and must not contain backend detection algorithms.
 - Each detector should have independent unit tests for triggering cases, benign counterexamples and inconclusive/missing-data behavior.
@@ -409,12 +409,12 @@ Any agent proposing changes to approved scope, threat categories, score semantic
 | Two documents (`PROJECT_OBJECTIVE.md`, `WBS.md`) | **Approved design** | One source of truth + one operational plan |
 | Existing Apps Script project preservation | **Approved** | Project ID is documented and local source is synchronized with `clasp`; do not recreate it |
 | Opened-email, on-demand Gmail Add-on (not proactive monitor) | **Approved direction** | Upwind assignment requirement and 48-hour limit |
-| FastAPI + Apps Script CardService | **Implemented for integration spike** | Manual Gmail-to-backend flow verified; detection remains pending |
+| FastAPI + Apps Script CardService | **Backend detection wired / Gmail UI pending** | Manual Gmail-to-backend flow verified; backend `/analyze` returns scored results; CardService still needs real-result presentation |
 | Exactly six threat detectors | **Approved / planned** | Five deterministic detectors plus one stochastic NLP classifier; none implemented yet |
 | English-only linguistic heuristics | **Proposed MVP scope** | Limited time; structural signals can work more broadly |
 | Local HTTPS tunnel and demo auth | **Verified for prototype** | ngrok HTTPS to `127.0.0.1:8000`; shared demo token via env var and Script Properties |
 | Detection contract and implementation order | **Drafted 2026-10-13; review pending** | `docs/detection-contract.md`; core three first, then attachment/financial, then separately evaluated NLP |
-| Scoring architecture (Method C) | **IMPLEMENTED INTERNALLY / NOT WIRED** | Category caps + cross-rule evidence deduplication + zero correlation bonus + explainable internal verdict; no automatic NLP vote |
+| Scoring architecture (Method C) | **IMPLEMENTED AND WIRED TO BACKEND** | Category caps + cross-rule evidence deduplication + zero correlation bonus + explainable backend verdict; no automatic NLP vote |
 | Scoring weights / thresholds / coverage / dataset | **PARTIAL** | Method C v1 weights, caps, thresholds and coverage are implemented internally for the first three detector families; future attachment/financial/NLP scoring and public response mapping remain open |
 | Repository URL and live demonstration account | **SET / USER-VERIFIED** | GitHub URL is recorded; real Gmail account add-on verification was reported by the user |
 
@@ -465,15 +465,15 @@ Use [docs/development-startup.md](docs/development-startup.md) to restart the lo
 
 > **Agents must replace/update this section at the end of every working session.** Never mark something as deployed, tested or complete without evidence.
 
-- **As of:** 2026-10-13 (internal Method C v1 scoring implementation)
-- **Current state:** Gmail-to-backend integration remains preserved: `/analyze` still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response and the Apps Script source/manifest were not modified in this scoring task. A backend-internal parser, sender detector, URL detector, credential-context detector, orchestration layer and Method C v1 scorer now exist, but no detector/scorer output is exposed through Gmail or the public API yet. No NLP model or Gmail UI replacement is implemented.
+- **As of:** 2026-10-13 (backend `/analyze` Method C integration checkpoint)
+- **Current state:** Gmail-to-backend integration remains preserved and backend `/analyze` now returns real parser -> engine -> Method C v1 scorer results in the existing schema. The Apps Script source/manifest were not modified in this backend integration task, so the Gmail card may still show demo-specific wording. No NLP model or Gmail UI replacement is implemented.
 - **Approved product scope:** Exactly six detection families are planned: sender, URL, credential context, attachment metadata, financial fraud, NLP. Full scope **does not** imply completed implementation. Three original deterministic families are the initial reliable slice; attachment/financial follow, while NLP is evaluated separately before aggregation.
-- **Work completed in this session:** Committed approved Method C v1 scoring policy, added `backend/app/scoring.py` and `tests/unit/test_scoring.py`, and updated scoring documentation. The internal scorer maps approved finding IDs to weights, deduplicates evidence, applies family caps, records accounting, evaluates coverage and assigns internal verdicts. `/analyze`, Apps Script, auth behavior and public response schema were not changed.
+- **Work completed in this session:** Verified and committed Method C v1 scoring as checkpoint `860b489eda2871e0f71a927e87a68e93eb3299cb`, then wired backend `/analyze` to run parser -> engine -> scorer and map results into the existing `AnalyzeResponse` schema. Added API regression tests for auth, validation, low-observed-risk, suspicious, high-risk, incomplete, deterministic behavior, contribution reconciliation, unavailable planned detectors, internal failures and sensitive-string redaction. Apps Script and Gmail UI files were not changed.
 - **Scoring decision (2026-10-13):** Method C v1 is implemented internally from `docs/scoring-policy.md`: approved finding weights, caps, thresholds, coverage policy and zero correlation bonus. NLP remains experimental and excluded from the aggregate until evaluated.
-- **Open decisions:** Public `/analyze` response mapping, Gmail presentation of real results, attachment metadata collection, NLP dataset/evaluation, public-suffix/registered-domain comparison, and possible future API status/truncation extensions.
-- **Next task:** Implement the smallest reviewed backend response-mapping slice that feeds parser -> engine -> scorer into `/analyze` while preserving schema version `1.0`, authentication and safe explanations. Do not start WBS 2.5 attachment detection, alter Gmail UI, implement NLP, or deploy without separate authorization.
-- **Validation evidence:** `.\.venv\Scripts\python.exe -m pytest -q` passed 132 tests with 2 warnings on 2026-10-13. The warnings were the existing Starlette/httpx deprecation and pytest cache write warning. Scoring coverage added 35 tests.
-- **Git/security handoff:** Method C policy checkpoint commit `4129964` was created locally. Scoring code/tests/docs remain uncommitted for review. Before any future commit, review the diff and confirm `UPWIND_HOME_ASSIGNMENT.md`, `addon/.clasp.json`, `.env`, credentials, tokens and real email content are not staged or tracked.
+- **Open decisions:** Gmail presentation of real backend results, attachment metadata collection, NLP dataset/evaluation, public-suffix/registered-domain comparison, and possible future API status/truncation extensions.
+- **Next task:** Update the existing Gmail CardService result card to display real score/verdict/findings/limitations/recommendation from `/analyze`, then manually verify through the live Gmail flow. Do not start WBS 2.5 attachment detection, implement NLP, deploy, or push without separate authorization.
+- **Validation evidence:** `.\.venv\Scripts\python.exe -m pytest -q` passed 145 tests with 2 warnings on 2026-10-13. The warnings were the existing Starlette/httpx deprecation and pytest cache write warning.
+- **Git/security handoff:** Method C scoring checkpoint commit `860b489eda2871e0f71a927e87a68e93eb3299cb` was created locally. Backend integration changes are intentionally uncommitted for review. Before any future commit, review the diff and confirm `UPWIND_HOME_ASSIGNMENT.md`, `addon/.clasp.json`, `.env`, credentials, tokens and real email content are not staged or tracked.
 
 ### Session log (append concise entries)
 
@@ -497,6 +497,7 @@ Use [docs/development-startup.md](docs/development-startup.md) to restart the lo
 | 2026-10-13 | Codex internal orchestration implementation | WBS 2.4 committed; internal engine added to run parser plus three core detectors; `/analyze` and Apps Script unchanged | `pytest -q`: 97 passed, 2 warnings | Review proposed Method C scoring plan |
 | 2026-10-13 | Codex Method C scoring policy approval | Approved scoring policy recorded; no API, Gmail, auth or detector changes made | Documentation/specification only | Implement internal Method C v1 scoring |
 | 2026-10-13 | Codex Method C v1 scoring implementation | Internal scorer and scoring tests added; `/analyze` and Apps Script unchanged | `pytest -q`: 132 passed, 2 warnings | Review scoring implementation; then map scored results to `/analyze` |
+| 2026-10-13 | Codex backend analysis integration | `/analyze` now runs parser, engine and Method C scorer; Apps Script unchanged | `pytest -q`: 144 passed, 2 warnings | Update Gmail CardService UI to display real results |
 
 ## 14. References
 

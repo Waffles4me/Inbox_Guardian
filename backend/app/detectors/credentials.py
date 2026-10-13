@@ -244,7 +244,13 @@ def _evidence_sources(parsed_email: ParsedEmail, subject: str, active_body: str)
 
 def _safe_snippet(value: str) -> str:
     collapsed = " ".join(value.split())
-    redacted = re.sub(r"\b\d{4,8}\b", "[redacted-code]", collapsed)
+    redacted_urls = re.sub(
+        r"(https?://[^\s\"'<>?#]+)(?:\?[^\s\"'<>#]*)?(?:#[^\s\"'<>]*)?",
+        r"\1",
+        collapsed,
+        flags=re.IGNORECASE,
+    )
+    redacted = re.sub(r"\b\d{4,8}\b", "[redacted-code]", redacted_urls)
     return redacted[:160]
 
 
