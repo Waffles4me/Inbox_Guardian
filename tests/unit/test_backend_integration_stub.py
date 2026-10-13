@@ -450,6 +450,41 @@ def test_live_validated_examples_retain_their_outcomes(monkeypatch) -> None:
     assert (multi_signal["verdict"], multi_signal["risk_score"]) == ("HIGH_RISK", 60)
 
 
+def test_multipart_sign_in_code_notice_is_not_flagged(monkeypatch) -> None:
+    notice = (
+        "Your verification code is 271604. Enter this code on the sign-in page to finish signing in. "
+        "Example staff will never ask you for this code. If you did not try to sign in, you can ignore this message."
+    )
+    body = post_analyze(
+        monkeypatch,
+        subject="Your sign-in code",
+        text_body=notice,
+        html_body=f"<p>{notice}</p>",
+    ).json()
+
+    assert body["verdict"] == "NO_SIGNIFICANT_SIGNALS"
+    assert body["risk_score"] == 0
+    assert body["findings"] == []
+    assert "271604" not in response_text(body)
+
+
+def test_duplicate_body_representations_do_not_inflate_contributions(monkeypatch) -> None:
+    text_only = post_analyze(
+        monkeypatch,
+        subject="Urgent Account Verification",
+        text_body=GMAIL_SHAPED_CREDENTIAL_TEXT,
+    ).json()
+    both = post_analyze(
+        monkeypatch,
+        subject="Urgent Account Verification",
+        text_body=GMAIL_SHAPED_CREDENTIAL_TEXT,
+        html_body='<div dir="ltr">' + GMAIL_SHAPED_CREDENTIAL_TEXT.replace("\n\n", "<br><br>") + "</div>",
+    ).json()
+
+    assert (both["verdict"], both["risk_score"]) == (text_only["verdict"], text_only["risk_score"]) == ("SUSPICIOUS", 25)
+    assert contribution_by_id(both) == contribution_by_id(text_only)
+
+
 def test_returned_contributions_reconcile_with_risk_score(monkeypatch) -> None:
     response = post_analyze(
         monkeypatch,

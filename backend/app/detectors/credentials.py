@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import re
 
 from backend.app.detectors.base import DetectorFinding, DetectorResult, DetectorStatus
@@ -55,8 +56,17 @@ _HEADER_LINE_RE = re.compile(r"^\s*(?:from|sent|to|subject):\s+.+", re.IGNORECAS
 
 def detect_credential_phishing_context(parsed_email: ParsedEmail) -> DetectorResult:
     subject = parsed_email.subject.strip()
-    active_body = _active_message_text(parsed_email)
-    combined_text = " ".join(part for part in [subject, active_body] if part).strip()
+    # The plain-text body and the visible HTML text are alternative representations of one message. Each is
+    # matched as its own context so a pattern can never span the end of one and the start of the other.
+    # A forwarded-message marker in the plain text hides everything after it. The HTML copy repeats that
+    # forwarded content without line structure, so it is not used as a second context in that case.
+    html_text = "" if _has_forwarded_marker(parsed_email.text_body) else parsed_email.html_visible_text
+    active_bodies = [body for body in (_active_text(parsed_email.text_body), _active_text(html_text)) if body]
+    active_body = " ".join(active_bodies)
+    contexts = list(
+        dict.fromkeys(" ".join(part for part in [subject, body] if part) for body in active_bodies or [""])
+    )
+    contexts = [context for context in contexts if context]
     has_links = bool(parsed_email.text_urls or parsed_email.html_links)
     evidence_sources = _evidence_sources(parsed_email, subject, active_body)
     limitations = [
@@ -64,7 +74,7 @@ def detect_credential_phishing_context(parsed_email: ParsedEmail) -> DetectorRes
         "The detector does not determine whether linked websites are malicious and does not score risk.",
     ]
 
-    if not combined_text:
+    if not contexts:
         return DetectorResult(
             detector_id=DETECTOR_ID,
             status=DetectorStatus.INCONCLUSIVE,
@@ -79,12 +89,12 @@ def detect_credential_phishing_context(parsed_email: ParsedEmail) -> DetectorRes
         )
 
     findings: list[DetectorFinding] = []
-    credential_request = _find_credential_request(combined_text)
-    account_verification = _find_match(_ACCOUNT_VERIFICATION_RE, combined_text)
-    urgency = bool(_URGENCY_RE.search(combined_text) and _THREAT_RE.search(combined_text))
-    bypass = _find_match(_SECURITY_BYPASS_RE, combined_text)
+    credential_request = _first_in_contexts(_find_credential_request, contexts)
+    account_verification = _first_in_contexts(lambda text: _find_match(_ACCOUNT_VERIFICATION_RE, text), contexts)
+    urgency = any(_URGENCY_RE.search(context) and _THREAT_RE.search(context) for context in contexts)
+    bypass = _first_in_contexts(lambda text: _find_match(_SECURITY_BYPASS_RE, text), contexts)
     if not bypass and credential_request:
-        bypass = _find_match(_NORMAL_LOGIN_BYPASS_RE, combined_text)
+        bypass = _first_in_contexts(lambda text: _find_match(_NORMAL_LOGIN_BYPASS_RE, text), contexts)
 
     if credential_request:
         findings.append(_credential_collection_finding(credential_request, evidence_sources))
@@ -104,7 +114,7 @@ def detect_credential_phishing_context(parsed_email: ParsedEmail) -> DetectorRes
     deduped_findings = _dedupe_findings(findings)
     if deduped_findings:
         status = DetectorStatus.TRIGGERED
-    elif _has_ambiguous_context(combined_text):
+    elif any(_has_ambiguous_context(context) for context in contexts):
         status = DetectorStatus.INCONCLUSIVE
         limitations = [
             "Credential-related language was present but lacked enough request context for a rule to trigger.",
@@ -207,8 +217,19 @@ def _security_bypass_finding(snippet: str, evidence_sources: tuple[str, ...]) ->
     )
 
 
-def _active_message_text(parsed_email: ParsedEmail) -> str:
-    raw_text = "\n".join(part for part in [parsed_email.text_body, parsed_email.html_visible_text] if part)
+def _first_in_contexts(find: Callable[[str], str], contexts: list[str]) -> str:
+    for context in contexts:
+        found = find(context)
+        if found:
+            return found
+    return ""
+
+
+def _has_forwarded_marker(raw_text: str) -> bool:
+    return any(_FORWARDED_MARKER_RE.match(line.strip()) for line in raw_text.splitlines())
+
+
+def _active_text(raw_text: str) -> str:
     active_lines: list[str] = []
     in_forwarded_block = False
     for line in raw_text.splitlines():

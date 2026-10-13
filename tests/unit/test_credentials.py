@@ -1,3 +1,5 @@
+import pytest
+
 from backend.app.detectors.base import DetectorStatus
 from backend.app.detectors.credentials import detect_credential_phishing_context
 from backend.app.models import EmailPayload
@@ -241,3 +243,110 @@ def test_security_bypass_instruction_triggers() -> None:
 
     assert detector_result.status == DetectorStatus.TRIGGERED
     assert "credential_security_bypass_instruction" in finding_ids(detector_result)
+
+
+SIGN_IN_CODE_TEXT = (
+    "Your verification code is 271604.\n\n"
+    "Enter this code on the sign-in page to finish signing in. It expires in 10 minutes.\n\n"
+    "Example staff will never ask you for this code. If you did not try to sign in, you can ignore this message."
+)
+SIGN_IN_CODE_HTML = (
+    "<p>Your verification code is <b>271604</b>.</p>"
+    "<p>Enter this code on the sign-in page to finish signing in. It expires in 10 minutes.</p>"
+    "<p>Example staff will never ask you for this code. If you did not try to sign in, you can ignore this message.</p>"
+)
+BYPASS_TEXT = "To avoid errors during the test, turn off two-step verification on your account until tomorrow."
+REQUEST_TEXT = "To prevent account suspension, reply to this email with your password immediately."
+
+
+@pytest.mark.parametrize(
+    "bodies",
+    [
+        {"text_body": SIGN_IN_CODE_TEXT},
+        {"html_body": SIGN_IN_CODE_HTML},
+        {"text_body": SIGN_IN_CODE_TEXT, "html_body": SIGN_IN_CODE_HTML},
+    ],
+    ids=["text-only", "html-only", "text-and-html"],
+)
+def test_sign_in_code_notice_has_no_bypass_finding_in_any_representation(bodies: dict[str, str]) -> None:
+    detector_result = result(subject="Your sign-in code", **bodies)
+
+    assert detector_result.status == DetectorStatus.INCONCLUSIVE
+    assert detector_result.findings == ()
+
+
+def test_pattern_cannot_span_plain_text_and_html_alternatives() -> None:
+    detector_result = result(
+        text_body="If this was not you, you can ignore this message.",
+        html_body="<p>Security verification is complete.</p>",
+    )
+
+    assert "credential_security_bypass_instruction" not in finding_ids(detector_result)
+
+
+@pytest.mark.parametrize(
+    "bodies",
+    [
+        {"text_body": BYPASS_TEXT},
+        {"html_body": f"<p>{BYPASS_TEXT}</p>"},
+        {"text_body": BYPASS_TEXT, "html_body": f"<p>{BYPASS_TEXT}</p>"},
+    ],
+    ids=["text-only", "html-only", "text-and-html"],
+)
+def test_bypass_instruction_within_one_representation_triggers_once(bodies: dict[str, str]) -> None:
+    detector_result = result(**bodies)
+
+    assert detector_result.status == DetectorStatus.TRIGGERED
+    assert finding_ids(detector_result) == ["credential_security_bypass_instruction"]
+
+
+def test_duplicate_representations_produce_the_same_findings_as_one() -> None:
+    text_only = result(text_body=REQUEST_TEXT)
+    both = result(text_body=REQUEST_TEXT, html_body=f"<div>{REQUEST_TEXT}</div>")
+
+    assert finding_ids(both) == finding_ids(text_only)
+    assert finding_ids(both) == [
+        "credential_secret_collection_request",
+        "credential_urgent_account_threat",
+    ]
+    assert [finding.observation for finding in both.findings] == [finding.observation for finding in text_only.findings]
+
+
+def test_request_present_only_in_html_alternative_is_detected() -> None:
+    detector_result = result(
+        text_body="Please view this message in an HTML-capable mail client.",
+        html_body=f"<p>{REQUEST_TEXT}</p>",
+    )
+
+    assert "credential_secret_collection_request" in finding_ids(detector_result)
+
+
+def test_warning_followed_by_separate_malicious_request_is_detected() -> None:
+    message = (
+        "Remember that we will never ask for your password by phone. "
+        "However, to restore your access, reply to this email with your password before midnight."
+    )
+    detector_result = result(text_body=message, html_body=f"<p>{message}</p>")
+
+    assert detector_result.status == DetectorStatus.TRIGGERED
+    assert "credential_secret_collection_request" in finding_ids(detector_result)
+    assert "reply to this email with your password" in detector_result.findings[0].observation
+
+
+def test_forwarded_content_stays_ignored_when_html_alternative_repeats_it() -> None:
+    forwarded_text = (
+        "FYI, is this real?\n\n"
+        "---------- Forwarded message ---------\n"
+        "From: Example <notice@example.test>\n\n"
+        f"{REQUEST_TEXT}\n"
+    )
+    forwarded_html = (
+        '<div dir="ltr">FYI, is this real?<br><br>---------- Forwarded message ---------<br>'
+        f"From: Example &lt;notice@example.test&gt;<br><br>{REQUEST_TEXT}</div>"
+    )
+    text_only = result(text_body=forwarded_text)
+    both = result(text_body=forwarded_text, html_body=forwarded_html)
+
+    assert text_only.findings == ()
+    assert both.findings == ()
+    assert both.status == text_only.status
