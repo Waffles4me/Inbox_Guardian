@@ -10,6 +10,7 @@
 - Sender detection may compare parsed From/Reply-To domains and explicit domain claims in display names, but must not make authentication, reputation, ownership, or confirmed impersonation claims.
 - URL detection may compare parsed visible URL text and actual destinations, identify IP-address hosts and confusing URL userinfo, but must not fetch, expand, resolve, render, or reputation-check URLs.
 - Credential-context detection may inspect English subject/body/visible HTML text for request patterns, but must not treat isolated keywords, urgency alone, or legitimate security notifications as proof of phishing.
+- Internal detector orchestration may aggregate detector statuses, findings, evidence identities and limitations, but must not assign risk scores, verdicts, correlation bonuses or clean/safe conclusions.
 - Do not commit secrets, Gmail tokens, private email content, or production `.env` files.
 - Treat the risk score as a heuristic index, not a calibrated probability.
 - Method C is the approved future scoring architecture: deduplicate overlapping evidence, cap detector-family contributions, and allow correlation adjustments only for genuinely independent evidence.
@@ -28,6 +29,7 @@
 - WBS 2.2 sender findings are internal and unscored. The first sender detector treats unrelated Reply-To domains as low-severity supporting evidence, handles missing/malformed identity as inconclusive, and uses conservative same/subdomain handling to reduce false positives.
 - WBS 2.3 URL findings are internal and unscored. The first URL detector treats deceptive display/destination mismatches, prefix-subdomain composition, literal IP hosts, and hostname-like userinfo as structural evidence only.
 - WBS 2.4 credential-context findings are internal and unscored. The first credential detector redacts code-like values, ignores structurally identifiable quoted/forwarded content, and treats missing or ambiguous credential language as inconclusive rather than malicious.
+- Internal orchestration runs only the parser and implemented sender/URL/credential detectors. Planned attachment, financial and NLP families are represented as `NOT_RUN` when included, with an explicit reason that no check was performed.
 
 ## Still Open
 

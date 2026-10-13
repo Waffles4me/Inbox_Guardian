@@ -1,11 +1,11 @@
 # InboxGuardian - Detection Contract
 
 > **Version:** Draft 0.1 - 2026-10-13
-> **Status:** Six-detector scope and **Method C scoring architecture approved**; parser plus internal sender, URL and credential-context detectors implemented; numerical weights, thresholds, correlation adjustments and coverage requirements **not yet approved**
+> **Status:** Six-detector scope and **Method C scoring architecture approved**; parser, three core detectors and internal orchestration implemented; numerical weights, thresholds, correlation adjustments and coverage requirements **not yet approved**
 > **Source of truth:** [`PROJECT_OBJECTIVE.md`](../PROJECT_OBJECTIVE.md) and [`WBS.md`](../WBS.md)
 > **Purpose:** Specify testable evidence, input availability, detector outcomes, scoring semantics, and acceptance criteria without changing the working Gmail integration.
 
-> **Implementation note:** WBS 2.1 parser, WBS 2.2 sender detector, WBS 2.3 URL detector, and WBS 2.4 credential-context detector code now exist internally, but no detector or scorer is wired into the public `/analyze` endpoint. The latest automated run passed **84 tests, 2 warnings** on 2026-10-13.
+> **Implementation note:** WBS 2.1 parser, WBS 2.2 sender detector, WBS 2.3 URL detector, WBS 2.4 credential-context detector, and the internal orchestration layer now exist, but no detector or scorer is wired into the public `/analyze` endpoint. The latest automated run passed **97 tests, 2 warnings** on 2026-10-13.
 
 ## 1. Baseline and change boundary
 
@@ -82,6 +82,19 @@ DetectorResult:
 - `NOT_RUN`: not implemented, disabled, missing required collected fields, or model unavailable; include reason.
 
 These fields are **internal design guidance, not a present API capability**. Preserve external `schema_version: "1.0"` and existing `Finding`/`AnalyzeResponse` until a versioned API change is explicitly accepted. A future response extension for per-detector statuses may be valuable but is not necessary for the first normalization slice.
+
+### Engine result contract
+
+`backend/app/engine.py` now exposes `analyze_with_detectors(payload: EmailPayload) -> EngineResult` for internal use. It:
+
+- Receives an already validated `EmailPayload`.
+- Calls `parse_email_payload` exactly once.
+- Runs implemented detectors in stable order: `sender_identity`, `url_deception`, `credential_context`.
+- Represents planned but unavailable families as `NOT_RUN`: `attachment_metadata`, `financial_fraud`, `nlp_phishing`.
+- Preserves each detector's `DetectorResult`, findings, evidence source identities, limitations and parser issues.
+- Returns aggregate `findings`, `evidence_sources`, `limitations`, `parse_issues` and `implementation_version`.
+
+The engine intentionally does **not** produce `risk_score`, `verdict`, user-facing recommendations, correlation bonuses, deduplicated score contributions, or public API responses. It does not fetch links, execute HTML, retrieve attachments, train/evaluate NLP, or perform Gmail-specific logic. Unexpected detector failures become bounded `NOT_RUN` detector results so they cannot be mistaken for successful clean checks.
 
 ### Findings (existing public fields)
 
@@ -212,6 +225,18 @@ Implemented WBS 2.4 rules in `backend/app/detectors/credentials.py`:
 
 The detector uses subject, plain text body, safely extracted visible HTML text and parsed link presence from `ParsedEmail`. It skips structurally identifiable quoted/forwarded content, redacts code-like 4-8 digit values from observations, and treats missing or ambiguous credential-related language as `INCONCLUSIVE`. Urgency alone, normal account-security newsletters, legitimate password-reset/MFA notifications, and generic password mentions do not trigger. It does not perform scoring, sender/link correlation beyond link-presence corroboration, language translation, reputation checks, page fetching, or public `/analyze` output.
 
+### Internal orchestration milestone
+
+Implemented in `backend/app/engine.py` with synthetic tests in `tests/unit/test_engine.py`:
+
+- The parser is invoked once per analysis.
+- Sender, URL and credential detectors run on the same `ParsedEmail`.
+- Detector statuses remain independent; missing sender data does not prevent URL or credential checks.
+- Findings and evidence identifiers are preserved for later Method C deduplication and correlation accounting.
+- Planned attachment, financial and NLP detectors are represented as explicit `NOT_RUN` outcomes when included.
+- The engine assigns no score or verdict and does not treat zero findings as proof of safety.
+- Malformed evidence and unexpected detector failures are not converted into clean `NOT_TRIGGERED` results.
+
 ### Detector milestones
 
 For each implemented rule: one positive synthetic trigger, at least one plausible benign counterexample, missing/ambiguous-field case, and a test that evidence text corresponds to observed input without disclosing secrets. Require aggregated tests for duplicate evidence, correlated vs unrelated signals, score boundaries and `INCOMPLETE` semantics. For attachments include missing metadata vs truly attachment-free distinction; for payments include cases where legitimate approval changes cannot be verified; for NLP use reproducible split, dataset provenance/license review, class-balance discussion, precision/recall/F1/false-positive rate and leakage checks. Small synthetic datasets support demonstrations **not** real-world accuracy claims.
@@ -230,6 +255,6 @@ A real Gmail account must show a suspicious/high-risk synthetic example, a benig
 
 ## 10. First bounded implementation milestone and handoff
 
-**Next Codex task:** review WBS 2.5 suspicious attachment metadata collection and representation before implementation. Confirm what metadata Gmail/Add-on can supply, how to distinguish not collected from no attachments, and how to validate filenames, MIME/content type and size without retrieving or executing binary content. Keep current integration and `DEMO / NOT ANALYZED` live output untouched. Avoid new network access, Gmail scopes, model training, detector weights, deploys, or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and existing integration regressions. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
+**Next Codex task:** approve and implement the smallest Method C scoring and response-mapping slice needed to turn internal engine output into a real Gmail result. Keep current integration and `DEMO / NOT ANALYZED` live output untouched until the scoring and `/analyze` replacement boundary is explicitly authorized. Avoid new network access, Gmail scopes, model training, detector weights beyond approved values, deploys, or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and existing integration regressions. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
 
 **Gate for this document:** Review and approve the remaining scoring-policy decisions separately. Draft documentation is not evidence of deployed detection. Documentation updates alone do not satisfy WBS 0.5 or G2.

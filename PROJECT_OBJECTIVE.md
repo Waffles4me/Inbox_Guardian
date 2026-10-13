@@ -83,7 +83,7 @@ These rules are mandatory for every current and future coding agent, including C
 
 ## Approved Threat Detection Scope
 
-This project has exactly **six approved threat detectors**. As of 2026-10-13, sender identity, deceptive URL, and credential-context detectors are implemented internally for future orchestration; the current backend `/analyze` endpoint still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response. The approved scope below is therefore the implementation target for WBS 2 and later validation work, not evidence of live Gmail detection capability.
+This project has exactly **six approved threat detectors**. As of 2026-10-13, sender identity, deceptive URL, and credential-context detectors are implemented internally and can be run by the internal orchestration layer; the current backend `/analyze` endpoint still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response. The approved scope below is therefore the implementation target for WBS 2 and later validation work, not evidence of live Gmail detection capability.
 
 The six detectors should share a common evidence model: each finding must include a stable ID, severity, observable evidence, interpretation, contribution to the heuristic risk index, known limitations, and likely benign explanations where relevant.
 
@@ -319,7 +319,7 @@ backend/app/
 |-- main.py                 # Thin FastAPI HTTP/auth layer
 |-- models.py               # Public request/response models
 |-- parsing.py              # Implemented: canonical parsing/normalization
-|-- engine.py               # Future detector orchestration
+|-- engine.py               # Implemented internal detector orchestration
 |-- scoring.py              # Future Method C scorer
 `-- detectors/
     |-- __init__.py         # Implemented package marker
@@ -351,7 +351,7 @@ Responsibilities:
 - `parsing.py` normalizes existing validated input and extracts structural evidence. It does not decide maliciousness.
 - `detectors/*.py` implement independent detector logic. Each detector receives normalized data and returns structured internal evidence; detectors do not calculate final email risk.
 - `detectors/base.py` defines the shared internal detector-result contract, statuses, finding shape and evidence conventions.
-- `engine.py` will later orchestrate parser/detector execution and pass evidence to scoring. It is not implemented yet.
+- `engine.py` orchestrates parser/detector execution internally and preserves evidence for future scoring. It is not wired into `/analyze` yet.
 - `scoring.py` will later implement approved Method C: evidence deduplication, detector-family caps, independent-evidence correlation adjustments and final verdict mapping. It is not implemented yet.
 - `main.py` remains the HTTP layer for authentication, validation, endpoint behavior and public response serialization.
 - `addon/Code.js` remains the Gmail-facing UI/client and must not contain backend detection algorithms.
@@ -465,15 +465,15 @@ Use [docs/development-startup.md](docs/development-startup.md) to restart the lo
 
 > **Agents must replace/update this section at the end of every working session.** Never mark something as deployed, tested or complete without evidence.
 
-- **As of:** 2026-10-13 (WBS 2.4 credential-context detector implementation)
-- **Current state:** Gmail-to-backend integration remains preserved: `/analyze` still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response and the Apps Script source/manifest were not modified in this detector task. A backend-internal parser, sender detector, URL detector and credential-context detector now exist for future orchestration, but no detector output is exposed through Gmail or the public API yet. No scorer, NLP model, or Gmail UI replacement is implemented.
+- **As of:** 2026-10-13 (internal detector orchestration implementation)
+- **Current state:** Gmail-to-backend integration remains preserved: `/analyze` still returns the explicit `DEMO / NOT ANALYZED` / `INCOMPLETE` response and the Apps Script source/manifest were not modified in this detector task. A backend-internal parser, sender detector, URL detector, credential-context detector and orchestration layer now exist, but no detector output is exposed through Gmail or the public API yet. No scorer, NLP model, or Gmail UI replacement is implemented.
 - **Approved product scope:** Exactly six detection families are planned: sender, URL, credential context, attachment metadata, financial fraud, NLP. Full scope **does not** imply completed implementation. Three original deterministic families are the initial reliable slice; attachment/financial follow, while NLP is evaluated separately before aggregation.
-- **Work completed in this session:** Reviewed URL hostname/domain-boundary handling, added URL regression tests, and committed WBS 2.3 as `b86e4fe1f11d24b2e6c1826adf18b1d2a65aafba`. Added `backend/app/detectors/credentials.py` and `tests/unit/test_credentials.py`; extended parser output with `text_body` for internal detectors; updated credential-detector documentation in `PROJECT_OBJECTIVE.md`, `WBS.md`, `docs/detection-contract.md`, `README.md`, and `docs/security-decisions.md`.
+- **Work completed in this session:** Verified and committed WBS 2.4 credential detector implementation and documentation. Added `backend/app/engine.py` and `tests/unit/test_engine.py` for internal orchestration: parse once, run sender/URL/credential detectors in stable order, preserve statuses/findings/evidence/limitations, and mark planned detector families as `NOT_RUN` when represented. `/analyze`, Apps Script, auth behavior and public response schema were not changed.
 - **Scoring decision (2026-10-13):** Method C (correlation-aware, category-capped evidence scoring) approved as architecture **only**. No scoring implementation, weights, caps, bonuses, thresholds, or required evidence coverage approved. NLP remains experimental and excluded from the aggregate until evaluated.
 - **Open decisions:** Final numerical weights, caps, thresholds, scoring evidence keys, correlation/coverage requirements, attachment metadata collection, NLP dataset/evaluation, public-suffix/registered-domain comparison, and possible future API status/truncation extensions. WBS 0.5 remains open until scoring parameters and semantics are approved. Sender, URL and credential-context detector findings are currently unscored and internal.
-- **Next task:** Start WBS 2.5 suspicious attachment metadata detector only after confirming safe metadata collection and representation without downloading attachment content. Do not wire detection into `/analyze`, alter Gmail UI, implement scoring, retrieve attachment binaries, or add NLP without a separate authorization.
-- **Validation evidence:** `.\.venv\Scripts\python.exe -m pytest -q` passed 84 tests with 2 warnings on 2026-10-13. The warnings were the existing Starlette/httpx deprecation and pytest cache write warning. URL boundary and credential-context coverage were added.
-- **Git/security handoff:** WBS 2.3 source/tests were committed as `b86e4fe1f11d24b2e6c1826adf18b1d2a65aafba`; WBS 2.4 code/tests/docs remain uncommitted for review. Before any future commit, review the diff and confirm `UPWIND_HOME_ASSIGNMENT.md`, `addon/.clasp.json`, `.env`, credentials, tokens and real email content are not staged or tracked.
+- **Next task:** Approve the smallest Method C scoring and response-mapping plan needed to connect internal engine output to a real Gmail result. Do not start WBS 2.5 attachment detection, alter Gmail UI, implement NLP, or replace `/analyze` output without separate authorization.
+- **Validation evidence:** `.\.venv\Scripts\python.exe -m pytest -q` passed 97 tests with 2 warnings on 2026-10-13. The warnings were the existing Starlette/httpx deprecation and pytest cache write warning. Engine coverage added 13 tests.
+- **Git/security handoff:** WBS 2.4 implementation commit `8a69a1f` and documentation commit `32c893c` were created locally. Orchestration code/tests/docs remain uncommitted for review. Before any future commit, review the diff and confirm `UPWIND_HOME_ASSIGNMENT.md`, `addon/.clasp.json`, `.env`, credentials, tokens and real email content are not staged or tracked.
 
 ### Session log (append concise entries)
 
@@ -494,6 +494,7 @@ Use [docs/development-startup.md](docs/development-startup.md) to restart the lo
 | 2026-10-13 | Codex WBS 2.2 sender detector implementation | Internal detector contract and sender detector added; architecture documented; `/analyze` and Apps Script unchanged | `pytest -q`: 43 passed, 2 warnings | Review diff; then WBS 2.3 deceptive URL detector |
 | 2026-10-13 | Codex WBS 2.3 URL detector implementation | Internal deceptive URL detector added; checkpoint commits created for WBS 2.1/2.2/docs; `/analyze` and Apps Script unchanged | `pytest -q`: 59 passed, 2 warnings | Review diff; then WBS 2.4 credential context detector |
 | 2026-10-13 | Codex WBS 2.4 credential-context detector implementation | URL boundary tests added and WBS 2.3 committed; internal credential-context detector added; `/analyze` and Apps Script unchanged | `pytest -q`: 84 passed, 2 warnings | Review diff; then WBS 2.5 attachment metadata design |
+| 2026-10-13 | Codex internal orchestration implementation | WBS 2.4 committed; internal engine added to run parser plus three core detectors; `/analyze` and Apps Script unchanged | `pytest -q`: 97 passed, 2 warnings | Review diff; approve minimal Method C scoring plan |
 
 ## 14. References
 
