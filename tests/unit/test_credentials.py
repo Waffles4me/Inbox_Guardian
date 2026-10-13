@@ -41,6 +41,44 @@ def test_request_to_share_otp_or_mfa_code_triggers() -> None:
     assert "credential_secret_collection_request" in finding_ids(detector_result)
 
 
+def test_reply_to_this_email_with_password_triggers() -> None:
+    detector_result = result(text_body="Reply to this email with your password.")
+
+    assert detector_result.status == DetectorStatus.TRIGGERED
+    assert "credential_secret_collection_request" in finding_ids(detector_result)
+
+
+def test_reply_with_verification_code_triggers() -> None:
+    detector_result = result(text_body="Reply with your verification code to continue.")
+
+    assert detector_result.status == DetectorStatus.TRIGGERED
+    assert "credential_secret_collection_request" in finding_ids(detector_result)
+
+
+def test_explicit_six_digit_verification_code_request_triggers() -> None:
+    detector_result = result(text_body="Please provide your six-digit verification code to restore access.")
+
+    assert detector_result.status == DetectorStatus.TRIGGERED
+    assert "credential_secret_collection_request" in finding_ids(detector_result)
+
+
+def test_live_false_negative_message_triggers_credential_findings() -> None:
+    detector_result = result(
+        subject="Urgent Account Verification",
+        text_body=(
+            "Your account requires immediate verification.\n\n"
+            "To prevent account suspension, reply to this email with your password and your six-digit verification code.\n\n"
+            "Do not use the normal login page. Complete this verification immediately."
+        ),
+    )
+
+    ids = finding_ids(detector_result)
+    assert detector_result.status == DetectorStatus.TRIGGERED
+    assert "credential_secret_collection_request" in ids
+    assert "credential_urgent_account_threat" in ids
+    assert "credential_security_bypass_instruction" in ids
+
+
 def test_urgent_account_suspension_threat_with_credential_request_triggers_context() -> None:
     detector_result = result(
         text_body="Urgent: your account will be suspended within 12 hours. Enter your password to restore access."
@@ -71,6 +109,27 @@ def test_legitimate_password_reset_notification_does_not_trigger() -> None:
 
 def test_legitimate_mfa_notification_does_not_trigger() -> None:
     detector_result = result(text_body="Your MFA code was used to sign in. If this was not you, review your account.")
+
+    assert detector_result.status == DetectorStatus.INCONCLUSIVE
+    assert detector_result.findings == ()
+
+
+def test_never_reply_with_password_warning_does_not_trigger_collection() -> None:
+    detector_result = result(text_body="Never reply to an email with your password.")
+
+    assert detector_result.status == DetectorStatus.INCONCLUSIVE
+    assert "credential_secret_collection_request" not in finding_ids(detector_result)
+
+
+def test_do_not_share_verification_code_warning_does_not_trigger_collection() -> None:
+    detector_result = result(text_body="Do not share your six-digit verification code with anyone.")
+
+    assert detector_result.status == DetectorStatus.INCONCLUSIVE
+    assert "credential_secret_collection_request" not in finding_ids(detector_result)
+
+
+def test_generic_account_verification_without_secret_collection_does_not_trigger() -> None:
+    detector_result = result(text_body="Please verify your account details by reviewing your profile settings.")
 
     assert detector_result.status == DetectorStatus.INCONCLUSIVE
     assert detector_result.findings == ()

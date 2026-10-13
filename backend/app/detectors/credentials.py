@@ -9,11 +9,23 @@ from backend.app.parsing import EvidenceSource, ParsedEmail
 DETECTOR_ID = "credential_context"
 IMPLEMENTATION_VERSION = "credentials-0.1.0"
 
-_SECRET_TERMS = r"(?:password|passcode|otp|mfa|2fa|verification code|authentication code|security code|login code)"
-_REQUEST_VERBS = r"(?:enter|submit|provide|share|send|reply with|confirm|verify|give us|update)"
+_CODE_SECRET_TERMS = (
+    r"(?:(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)[-\s]?digit\s+)?"
+    r"(?:verification|authentication|security|login)\s+code"
+)
+_SECRET_TERMS = rf"(?:password|passcode|otp|mfa|2fa|{_CODE_SECRET_TERMS})"
+_REQUEST_ACTIONS = (
+    r"(?:enter|submit|provide|share|send|reply\s+with|reply\s+to[\w\s,.;:'\"/-]{0,40}\s+with|"
+    r"confirm|verify|give us|update)"
+)
 _CREDENTIAL_REQUEST_RE = re.compile(
-    rf"\b{_REQUEST_VERBS}\b[\w\s,.;:'\"/-]{{0,80}}\b{_SECRET_TERMS}\b"
+    rf"\b{_REQUEST_ACTIONS}\b[\w\s,.;:'\"/-]{{0,80}}\b{_SECRET_TERMS}\b"
     rf"|\b{_SECRET_TERMS}\b[\w\s,.;:'\"/-]{{0,80}}\b(?:to continue|to restore|to keep|to avoid|on the form|in the link)\b",
+    re.IGNORECASE,
+)
+_SAFETY_WARNING_RE = re.compile(
+    rf"\b(?:never|do not|don't|dont)\b[\w\s,.;:'\"/-]{{0,40}}\b{_REQUEST_ACTIONS}\b"
+    rf"[\w\s,.;:'\"/-]{{0,80}}\b{_SECRET_TERMS}\b",
     re.IGNORECASE,
 )
 _ACCOUNT_VERIFICATION_RE = re.compile(
@@ -31,6 +43,10 @@ _THREAT_RE = re.compile(
 )
 _SECURITY_BYPASS_RE = re.compile(
     r"\b(?:ignore|bypass|disable|turn off)\b[\w\s,.;:'\"/-]{0,60}\b(?:security|mfa|2fa|verification|approval)\b",
+    re.IGNORECASE,
+)
+_NORMAL_LOGIN_BYPASS_RE = re.compile(
+    r"\b(?:do not|don't|dont|avoid|skip)\b[\w\s,.;:'\"/-]{0,40}\b(?:normal|usual|official)\s+login\s+page\b",
     re.IGNORECASE,
 )
 _FORWARDED_MARKER_RE = re.compile(r"^\s*(?:[-]+\s*)?(?:forwarded message|original message)(?:\s*[-]+)?\s*$", re.IGNORECASE)
@@ -63,10 +79,12 @@ def detect_credential_phishing_context(parsed_email: ParsedEmail) -> DetectorRes
         )
 
     findings: list[DetectorFinding] = []
-    credential_request = _find_match(_CREDENTIAL_REQUEST_RE, combined_text)
+    credential_request = _find_credential_request(combined_text)
     account_verification = _find_match(_ACCOUNT_VERIFICATION_RE, combined_text)
     urgency = bool(_URGENCY_RE.search(combined_text) and _THREAT_RE.search(combined_text))
     bypass = _find_match(_SECURITY_BYPASS_RE, combined_text)
+    if not bypass and credential_request:
+        bypass = _find_match(_NORMAL_LOGIN_BYPASS_RE, combined_text)
 
     if credential_request:
         findings.append(_credential_collection_finding(credential_request, evidence_sources))
@@ -211,6 +229,15 @@ def _find_match(pattern: re.Pattern[str], text: str) -> str:
     if not match:
         return ""
     return _sentence_containing(text, match.start(), match.end())
+
+
+def _find_credential_request(text: str) -> str:
+    for match in _CREDENTIAL_REQUEST_RE.finditer(text):
+        sentence = _sentence_containing(text, match.start(), match.end())
+        if _SAFETY_WARNING_RE.search(sentence):
+            continue
+        return sentence
+    return ""
 
 
 def _sentence_containing(text: str, start: int, end: int) -> str:

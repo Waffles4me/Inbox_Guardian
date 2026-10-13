@@ -176,6 +176,32 @@ def test_credential_collection_request_returns_credential_finding(monkeypatch) -
     assert "do not submit passwords" in body["recommended_action"]
 
 
+def test_live_credential_phishing_regression_is_suspicious(monkeypatch) -> None:
+    response = post_analyze(
+        monkeypatch,
+        subject="Urgent Account Verification",
+        text_body=(
+            "Your account requires immediate verification.\n\n"
+            "To prevent account suspension, reply to this email with your password and your six-digit verification code.\n\n"
+            "Do not use the normal login page. Complete this verification immediately."
+        ),
+    )
+
+    body = response.json()
+    ids = finding_ids(body)
+    contributions = contribution_by_id(body)
+    assert response.status_code == 200
+    assert body["verdict"] == "SUSPICIOUS"
+    assert body["verdict"] != "NO_SIGNIFICANT_SIGNALS"
+    assert body["verdict"] != "HIGH_RISK"
+    assert "credential_secret_collection_request" in ids
+    assert "credential_urgent_account_threat" in ids
+    assert "credential_security_bypass_instruction" in ids
+    assert any(value > 0 for value in contributions.values())
+    assert contribution_total(body) == body["risk_score"]
+    assert "do not submit passwords" in body["recommended_action"]
+
+
 def test_multi_signal_scenario_can_return_high_risk(monkeypatch) -> None:
     response = post_analyze(
         monkeypatch,
