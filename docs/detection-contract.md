@@ -1,11 +1,11 @@
 # InboxGuardian - Detection Contract
 
 > **Version:** Draft 0.1 - 2026-10-13
-> **Status:** Six-detector scope and **Method C scoring architecture approved**; parser, three core detectors and internal orchestration implemented; numerical weights, thresholds, correlation adjustments and coverage requirements **not yet approved**
+> **Status:** Six-detector scope and **Method C v1 scoring implemented internally**; parser, three core detectors, orchestration and scoring exist; public `/analyze` still returns demo output
 > **Source of truth:** [`PROJECT_OBJECTIVE.md`](../PROJECT_OBJECTIVE.md) and [`WBS.md`](../WBS.md)
 > **Purpose:** Specify testable evidence, input availability, detector outcomes, scoring semantics, and acceptance criteria without changing the working Gmail integration.
 
-> **Implementation note:** WBS 2.1 parser, WBS 2.2 sender detector, WBS 2.3 URL detector, WBS 2.4 credential-context detector, and the internal orchestration layer now exist, but no detector or scorer is wired into the public `/analyze` endpoint. The latest automated run passed **97 tests, 2 warnings** on 2026-10-13.
+> **Implementation note:** WBS 2.1 parser, WBS 2.2 sender detector, WBS 2.3 URL detector, WBS 2.4 credential-context detector, internal orchestration and Method C v1 scoring now exist, but no detector or scorer is wired into the public `/analyze` endpoint. The latest automated run passed **132 tests, 2 warnings** on 2026-10-13.
 
 ## 1. Baseline and change boundary
 
@@ -96,6 +96,12 @@ These fields are **internal design guidance, not a present API capability**. Pre
 
 The engine intentionally does **not** produce `risk_score`, `verdict`, user-facing recommendations, correlation bonuses, deduplicated score contributions, or public API responses. It does not fetch links, execute HTML, retrieve attachments, train/evaluate NLP, or perform Gmail-specific logic. Unexpected detector failures become bounded `NOT_RUN` detector results so they cannot be mistaken for successful clean checks.
 
+### Scorer result contract
+
+`backend/app/scoring.py` exposes `score_engine_result(result: EngineResult) -> ScoringResult` for internal use. It maps implemented finding IDs to approved Method C v1 weights, deduplicates repeated evidence, reconciles overlapping URL/link and credential-link context, applies family caps, assigns a bounded `0..100` heuristic risk index and returns an internal verdict. It preserves explainable accounting through `ScoredFinding`, `FamilyScore`, coverage assessment, limitations, independent evidence families and a `correlation_bonus` currently fixed at `0`.
+
+The scorer intentionally does **not** serialize public API responses, change `AnalyzeResponse`, wire into `/analyze`, fetch links, execute HTML, retrieve attachments, run NLP, or call external services.
+
 ### Findings (existing public fields)
 
 Existing `Finding` fields: `id`, `severity` (`info|low|medium|high`), `title`, `observation`, `interpretation`, and integer `contribution` (0-100). Each emitted finding must have a stable rule-specific ID, an **observed** condition, a **qualified** interpretation that permits benign explanations, and a score contribution that is traceable to an explicit scoring rule. Do not invent evidence, reverse-lookup unverifiable reputation, or expose passwords/OTP codes/URL secrets in observation strings. A detector may yield zero findings while still reporting that it ran.
@@ -138,7 +144,7 @@ The example contribution of `0` intentionally avoids prematurely agreeing a scor
 
 **Illustrative shape only (not executable or calibrated):** `risk_score = min(100, sum(capped_unique_family_contributions) + justified_distinct_evidence_adjustment)`. Contribution bookkeeping must explain deductions from deduplication, category caps and correlation adjustments without double counting. No specific numerical values are approved by this equation.
 
-**Decision still open:** exact detector weights, correlation bonuses, caps, threshold boundaries, and minimum required detector coverage. Do **not** silently use the illustrative `0-29 / 30-69 / 70-100` ranges from discussion as production thresholds. Decide weights only after producing synthetic positives, realistic benign counterexamples, and inspectable results; version and document changes.
+**Implemented Method C v1 policy:** approved finding weights, family caps, thresholds, zero correlation bonus and coverage rules are recorded in [`docs/scoring-policy.md`](scoring-policy.md). The scorer is internal and not yet exposed through Gmail.
 
 **Required invariants for the eventual scorer:**
 
@@ -245,9 +251,9 @@ For each implemented rule: one positive synthetic trigger, at least one plausibl
 
 A real Gmail account must show a suspicious/high-risk synthetic example, a benign-looking counterexample, and an incomplete/operational-failure state. Document manual outcomes distinctly from automated unit tests. Never use live private messages as publicly committed fixtures.
 
-## 9. Open decisions requiring explicit approval before scoring implementation
+## 9. Open decisions requiring explicit approval before public scoring integration
 
-1. **Method C numeric and policy parameters:** per-rule weights, per-family caps, stable evidence/deduplication keys, definition of independent corroboration and any bonus amount, score/verdict thresholds, stand-alone critical-finding treatment, and minimum check/data coverage needed for `NO_SIGNIFICANT_SIGNALS` versus `INCOMPLETE`. The architecture is approved; these parameters are not.
+1. **Public scoring integration:** how to serialize internal `ScoringResult` into the existing `AnalyzeResponse` schema while keeping explanations concise and honest.
 2. **Attachment availability:** whether/how to collect metadata with existing Gmail scopes, and how to distinguish uncollected from absent, without downloading binaries.
 3. **NLP go/no-go:** available legally usable representative labeled dataset, reproducible training and actual incremental performance; model output may remain informational if evidence is weak.
 4. **Response extension:** whether a later API version needs explicit per-detector statuses, coverage and score-reconciliation fields; do not alter `1.0` without review.
@@ -255,6 +261,6 @@ A real Gmail account must show a suspicious/high-risk synthetic example, a benig
 
 ## 10. First bounded implementation milestone and handoff
 
-**Next Codex task:** approve and implement the smallest Method C scoring and response-mapping slice needed to turn internal engine output into a real Gmail result. Keep current integration and `DEMO / NOT ANALYZED` live output untouched until the scoring and `/analyze` replacement boundary is explicitly authorized. Avoid new network access, Gmail scopes, model training, detector weights beyond approved values, deploys, or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and existing integration regressions. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
+**Next Codex task:** implement the smallest reviewed `/analyze` response-mapping slice that turns internal engine + scoring output into a real backend result while preserving authentication, schema version `1.0`, and Gmail safety boundaries. Keep the Gmail Add-on source unchanged until backend response behavior is separately verified. Avoid new network access, Gmail scopes, model training, deploys, or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and existing integration regressions. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
 
-**Gate for this document:** Review and approve the remaining scoring-policy decisions separately. Draft documentation is not evidence of deployed detection. Documentation updates alone do not satisfy WBS 0.5 or G2.
+**Gate for this document:** Internal scoring is implemented and tested, but public detection is not deployed. G2 is not complete until `/analyze` returns real scored results and Gmail renders them through the existing authenticated flow.

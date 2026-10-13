@@ -1,10 +1,10 @@
 # InboxGuardian - Method C v1 Scoring Policy
 
-> **Status:** APPROVED POLICY / NOT IMPLEMENTED
+> **Status:** APPROVED AND IMPLEMENTED INTERNALLY / NOT WIRED TO `/analyze`
 > **Date:** 2026-10-13
 > **Scope:** Initial scoring specification for the three implemented internal detector families only: sender identity, URL deception and credential context.
 
-This document records the approved deterministic Method C v1 scoring policy. It does not change `/analyze`, Gmail UI, public response schema, detector code or authentication behavior until scoring code is implemented, tested and separately wired into the public endpoint.
+This document records the approved deterministic Method C v1 scoring policy implemented in `backend/app/scoring.py` and tested in `tests/unit/test_scoring.py`. It does not change `/analyze`, Gmail UI, public response schema, detector code or authentication behavior; public endpoint integration remains a separate milestone.
 
 ## Method C Summary
 
@@ -135,13 +135,13 @@ Examples that should **not** be enough for high risk by themselves:
 | Malformed or truncated input | Malformed URL or parser issues. | Affected detector `INCONCLUSIVE`; parse issues preserved. | `INCOMPLETE` if meaningful checks cannot run, otherwise `SUSPICIOUS`/`NO_SIGNIFICANT_SIGNALS` with limitations |
 | Unimplemented detector families | No attachment/financial/NLP implementation. | Planned families `NOT_RUN` with explicit limitations. | Does not force `INCOMPLETE` by itself |
 
-## Implementation Notes for `scoring.py`
+## Implemented Scorer Interface
 
-Proposed files for the next scoring implementation:
+`backend/app/scoring.py` exposes:
 
-- `backend/app/scoring.py`
-- `tests/unit/test_scoring.py`
-- Optional docs update to this file after approval
-- Later, a separate `/analyze` integration change in `backend/app/main.py` only after scoring tests pass
+- `score_engine_result(result: EngineResult) -> ScoringResult`
+- `ScoringResult`: `risk_score`, `verdict`, per-family accounting, scored findings, limitations, coverage assessment, independent evidence families, correlation bonus and implementation version.
+- `ScoredFinding`: original immutable detector finding plus approved weight, effective contribution, counted flag and accounting note.
+- `FamilyScore`: raw points, capped points, cap and per-family limitations.
 
-The first scorer should consume `EngineResult`, not raw `EmailPayload`, and should preserve public `AnalyzeResponse` schema version `1.0` if wired into `/analyze` later.
+The scorer consumes `EngineResult`, not raw `EmailPayload`, and preserves public `AnalyzeResponse` schema version `1.0` for a later serializer. The scorer does not mutate engine input objects and does not fetch URLs, execute HTML, retrieve attachments or use external services.

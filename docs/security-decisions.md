@@ -13,7 +13,7 @@
 - Internal detector orchestration may aggregate detector statuses, findings, evidence identities and limitations, but must not assign risk scores, verdicts, correlation bonuses or clean/safe conclusions.
 - Do not commit secrets, Gmail tokens, private email content, or production `.env` files.
 - Treat the risk score as a heuristic index, not a calibrated probability.
-- Method C is the approved future scoring architecture: deduplicate overlapping evidence, cap detector-family contributions, and allow correlation adjustments only for genuinely independent evidence.
+- Method C v1 is the approved internal scoring policy: fixed heuristic finding weights, detector-family caps, deterministic deduplication/accounting, and a zero correlation bonus.
 - Use a shared demo token in the `X-InboxGuardian-Token` header for the first single-user Apps Script-to-backend prototype.
 - Store the backend URL and demo token outside Git: backend environment variables locally, Apps Script Properties remotely.
 - The current backend response is `DEMO / NOT ANALYZED` and must not be presented as a real security assessment.
@@ -30,11 +30,12 @@
 - WBS 2.3 URL findings are internal and unscored. The first URL detector treats deceptive display/destination mismatches, prefix-subdomain composition, literal IP hosts, and hostname-like userinfo as structural evidence only.
 - WBS 2.4 credential-context findings are internal and unscored. The first credential detector redacts code-like values, ignores structurally identifiable quoted/forwarded content, and treats missing or ambiguous credential language as inconclusive rather than malicious.
 - Internal orchestration runs only the parser and implemented sender/URL/credential detectors. Planned attachment, financial and NLP families are represented as `NOT_RUN` when included, with an explicit reason that no check was performed.
+- Internal Method C v1 scoring consumes `EngineResult`, preserves accounting, treats risk score as a heuristic index, and is not wired to `/analyze` or Gmail yet.
 
 ## Still Open
 
 - Rotation/replacement plan for the demo token if the project becomes more than a single-user prototype.
 - Sensitive logging and redaction rules for future detector findings and operational logs.
 - Whether Gmail authentication metadata is available with trustworthy provenance.
-- Final Method C numeric scoring policy, detector evidence schema, and minimum coverage rules.
+- Public `/analyze` response mapping for internal engine/scoring output.
 - Whether to add a public-suffix/registered-domain library for more precise domain relationship checks.

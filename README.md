@@ -4,17 +4,17 @@ InboxGuardian is a 48-hour Upwind Security home-assignment project: a Gmail Add-
 
 The assignment requires a Google Workspace Gmail Add-on, a backend service the add-on can call, a clear maliciousness score/verdict/reasoning shown to the user, a public source repository, and a live demonstration against a real Gmail account. The full assignment brief is intentionally not published in this repository.
 
-Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. WBS 2.1 safe parsing/normalization, WBS 2.2 sender detection, WBS 2.3 deceptive URL detection, WBS 2.4 credential-context detection, and internal detector orchestration are implemented with synthetic tests. The backend still returns `DEMO / NOT ANALYZED`; no real security assessment is exposed through Gmail yet.
+Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. WBS 2.1 safe parsing/normalization, WBS 2.2 sender detection, WBS 2.3 deceptive URL detection, WBS 2.4 credential-context detection, internal detector orchestration, and Method C v1 internal scoring are implemented with synthetic tests. The backend still returns `DEMO / NOT ANALYZED`; no real security assessment is exposed through Gmail yet.
 
 ## Scope
 
 - Gmail Add-on for an opened message, not inbox-wide monitoring.
 - Separate Python/FastAPI backend.
 - Option B: explainable multi-signal analysis. Six detector families are approved as planned scope: sender identity, URL deception, credential-phishing context, suspicious attachment metadata, payment redirection / financial fraud, and separately evaluated NLP phishing classification.
-- Method C is the approved future scoring architecture: evidence deduplication, per-family caps, and correlation only for genuinely independent evidence. Exact weights, caps, thresholds, bonuses, and minimum coverage remain undecided.
+- Method C v1 internal scoring is implemented: evidence deduplication, per-family caps, fixed heuristic weights, approved thresholds, coverage handling, and zero correlation bonus.
 - Explainable 0-100 heuristic risk index, verdict, evidence, limitations, and recommended action.
 - No LLM analysis, malware execution, URL fetching, auto-quarantine, or background scanning in the MVP.
-- Implemented detector findings are currently internal and unscored; they are not connected to `/analyze` or the Gmail UI.
+- Implemented detector findings and scored internal results are not connected to `/analyze` or the Gmail UI.
 
 ## Repository Layout
 
@@ -192,9 +192,9 @@ Useful official docs:
 - Whether to add a small local startup helper after the manual startup flow remains stable.
 - Add-on-to-backend authentication rotation/replacement if the project grows beyond a single-user prototype.
 - Sensitive logging/redaction rules for future detector output.
-- Final scoring parameters for Method C: rule weights, per-family caps, thresholds, correlation bonuses, and minimum evidence coverage.
+- Public response mapping from internal engine/scoring output to the existing `/analyze` schema.
 - Whether authentication metadata can be trusted from available Gmail/Add-on data.
 
 ## Validation Status
 
-Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Automated tests cover the backend/add-on source contract, internal parser, internal detectors, and internal detector orchestration. Do not claim detection accuracy until scoring, fixtures, and evaluation are implemented.
+Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Automated tests cover the backend/add-on source contract, internal parser, internal detectors, internal detector orchestration, and internal scoring. Do not claim detection accuracy until public response mapping, fixtures, and evaluation are implemented.
