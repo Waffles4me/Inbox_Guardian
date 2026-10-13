@@ -337,6 +337,119 @@ def test_incomplete_preserves_positive_warning_contributions(monkeypatch) -> Non
     assert "No meaningful risk score was produced" in body["limitations"][0]
 
 
+UI_VISIBLE_LIMITATIONS = 6
+INCOMPLETE_EXPLANATIONS = ("only the subject line", "No analyzable", "sender identity", "did not run")
+
+
+def assert_incomplete_is_explained(body: dict[str, object]) -> None:
+    limitations = body["limitations"]
+    assert body["verdict"] == "INCOMPLETE"
+    assert body["risk_score"] == 0
+    assert "score is unavailable" in limitations[0]
+    assert "does not mean low risk" in limitations[0]
+    assert any(text in limitations[1] for text in INCOMPLETE_EXPLANATIONS)
+    explained = [index for index, item in enumerate(limitations) if any(text in item for text in INCOMPLETE_EXPLANATIONS)]
+    assert explained and max(explained) < UI_VISIBLE_LIMITATIONS
+    assert len(limitations) == len(set(limitations))
+    assert "could not assess" in body["recommended_action"]
+    assert "No significant indicators" not in body["recommended_action"]
+
+
+@pytest.mark.parametrize(
+    "email",
+    [
+        {"subject": "Quarterly update", "text_body": "", "html_body": ""},
+        {"subject": "Quarterly update", "text_body": "  \n ", "html_body": " "},
+        {"subject": "Quarterly update", "text_body": "", "html_body": '<div><img src="cid:synthetic"></div>'},
+        {"subject": "Quarterly update", "from": "", "text_body": "", "html_body": ""},
+        {"subject": "", "text_body": "", "html_body": ""},
+        {"subject": "", "from": "", "text_body": "", "html_body": ""},
+    ],
+    ids=["empty-bodies", "whitespace-bodies", "image-only", "subject-only-no-sender", "sender-only", "all-empty"],
+)
+def test_unusable_content_is_incomplete_with_visible_explanation(monkeypatch, email) -> None:
+    body = post_analyze(monkeypatch, **email).json()
+
+    assert_incomplete_is_explained(body)
+    assert body["findings"] == []
+
+
+def test_subject_only_message_explains_that_only_the_subject_was_checked(monkeypatch) -> None:
+    body = post_analyze(monkeypatch, subject="Quarterly update", text_body="", html_body="").json()
+
+    assert body["verdict"] == "INCOMPLETE"
+    assert "only the subject line" in body["limitations"][1]
+
+
+def test_detector_failure_with_positive_finding_is_explained_and_preserves_finding(monkeypatch) -> None:
+    def fail_detector(_parsed_email):
+        raise RuntimeError("synthetic sender failure")
+
+    monkeypatch.setattr(
+        "backend.app.engine.IMPLEMENTED_DETECTORS",
+        (
+            DetectorRunner("sender_identity", fail_detector),
+            DetectorRunner("credential_context", detect_credential_phishing_context),
+        ),
+    )
+
+    body = post_analyze(monkeypatch, text_body="Please submit your password to continue.").json()
+
+    assert_incomplete_is_explained(body)
+    assert contribution_by_id(body) == {"credential_secret_collection_request": 20}
+    assert "synthetic sender failure" not in response_text(body)
+
+
+def test_credential_request_with_missing_sender_keeps_positive_evidence(monkeypatch) -> None:
+    body = post_analyze(
+        monkeypatch,
+        **{"from": ""},
+        text_body="Please reply with your password and six-digit verification code.",
+    ).json()
+
+    assert body["verdict"] == "SUSPICIOUS"
+    assert body["risk_score"] == 20
+    assert contribution_by_id(body) == {"credential_secret_collection_request": 20}
+
+
+@pytest.mark.parametrize(
+    "email",
+    [
+        {"subject": "", "text_body": "Lunch is at noon in the usual room."},
+        {"text_body": "", "html_body": "<p>Lunch is at noon in the usual room.</p>"},
+        {"text_body": "Lunch is at noon in the usual room.", "html_body": ""},
+        {"text_body": "", "html_body": '<a href="https://docs.example.test/help"><img src="cid:synthetic"></a>'},
+        {"reply_to": "", "text_body": "Lunch is at noon.", "html_body": "<p>Lunch is at noon.</p>"},
+    ],
+    ids=["no-subject", "html-only", "text-only", "link-only", "no-reply-to"],
+)
+def test_usable_content_is_not_forced_incomplete(monkeypatch, email) -> None:
+    body = post_analyze(monkeypatch, **email).json()
+
+    assert body["verdict"] == "NO_SIGNIFICANT_SIGNALS"
+    assert body["risk_score"] == 0
+    assert body["findings"] == []
+
+
+def test_live_validated_examples_retain_their_outcomes(monkeypatch) -> None:
+    benign = post_analyze(
+        monkeypatch,
+        subject="Project lunch",
+        text_body="Lunch is at noon in the usual room.",
+        html_body="<p>Lunch is at noon in the usual room.</p>",
+    ).json()
+    credential = post_analyze(
+        monkeypatch,
+        subject="Urgent Account Verification",
+        text_body=GMAIL_SHAPED_CREDENTIAL_TEXT,
+    ).json()
+    multi_signal = post_analyze(monkeypatch, **gmail_shaped_email()).json()
+
+    assert (benign["verdict"], benign["risk_score"]) == ("NO_SIGNIFICANT_SIGNALS", 0)
+    assert (credential["verdict"], credential["risk_score"]) == ("SUSPICIOUS", 25)
+    assert (multi_signal["verdict"], multi_signal["risk_score"]) == ("HIGH_RISK", 60)
+
+
 def test_returned_contributions_reconcile_with_risk_score(monkeypatch) -> None:
     response = post_analyze(
         monkeypatch,

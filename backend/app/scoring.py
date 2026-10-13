@@ -12,6 +12,7 @@ ScoreVerdict = Literal["HIGH_RISK", "SUSPICIOUS", "NO_SIGNIFICANT_SIGNALS", "INC
 
 IMPLEMENTATION_VERSION = "scoring-0.1.0"
 CORRELATION_BONUS = 0
+SUSPICIOUS_THRESHOLD = 20
 
 IMPLEMENTED_FAMILIES = frozenset({"sender_identity", "url_deception", "credential_context"})
 PLANNED_FAMILIES = frozenset({"attachment_metadata", "financial_fraud", "nlp_phishing"})
@@ -278,17 +279,25 @@ def _assess_coverage(
 
     parsed = result.parsed_email
     has_valid_sender = parsed.from_mailbox.status == ParseStatus.PRESENT
-    has_content = bool(
-        parsed.subject.strip()
-        or parsed.text_body.strip()
+    # A subject line alone is not body evidence: an empty, whitespace-only or image-only body may mean the
+    # content was not collected, so it must not support a NO_SIGNIFICANT_SIGNALS verdict.
+    has_body_evidence = bool(
+        parsed.text_body.strip()
         or parsed.html_visible_text.strip()
-        or parsed.text_urls
-        or parsed.html_links
+        or any(url.status == ParseStatus.PRESENT for url in parsed.text_urls)
+        or any(link.href.status == ParseStatus.PRESENT for link in parsed.html_links)
     )
-    if not has_valid_sender and risk_score == 0:
-        reasons.append("No valid sender identity was available and no positive evidence was found.")
-    if not has_content and risk_score == 0:
-        reasons.append("No analyzable subject, body text, HTML text or URL evidence was available.")
+    below_suspicious = risk_score < SUSPICIOUS_THRESHOLD
+    if not has_valid_sender and below_suspicious:
+        reasons.append("No valid sender identity was available and no significant suspicious evidence was found.")
+    if not has_body_evidence and below_suspicious:
+        if parsed.subject.strip():
+            reasons.append(
+                "The message body contained no readable text or supported links, so only the subject line "
+                "could be checked."
+            )
+        else:
+            reasons.append("No analyzable subject, body text, HTML text or URL evidence was available.")
 
     inconsistent = [
         detector.detector_id
@@ -299,7 +308,7 @@ def _assess_coverage(
         reasons.append(f"Inconsistent detector output from: {', '.join(sorted(inconsistent))}.")
 
     complete = not reasons
-    sufficient_for_no_significant = complete and has_valid_sender and has_content
+    sufficient_for_no_significant = complete and has_valid_sender and has_body_evidence
     return CoverageAssessment(
         is_complete=complete,
         reasons=tuple(reasons),
@@ -329,7 +338,7 @@ def _assign_verdict(
         if len(independent_families) >= 2:
             return "HIGH_RISK"
         return "SUSPICIOUS"
-    if risk_score >= 20:
+    if risk_score >= SUSPICIOUS_THRESHOLD:
         return "SUSPICIOUS"
     if coverage.sufficient_for_no_significant_signals:
         return "NO_SIGNIFICANT_SIGNALS"

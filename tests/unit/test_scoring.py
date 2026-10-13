@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+import pytest
+
 from backend.app.detectors.base import DetectorFinding, DetectorResult, DetectorStatus
 from backend.app.engine import EngineResult
 from backend.app.models import EmailPayload
@@ -346,6 +348,89 @@ def test_missing_html_or_urls_alone_does_not_force_incomplete() -> None:
     result = score_for(email=payload(html_body="", text_body="Plain text content with no links."))
 
     assert result.verdict == "NO_SIGNIFICANT_SIGNALS"
+
+
+@pytest.mark.parametrize(
+    "bodies",
+    [
+        {"text_body": "", "html_body": ""},
+        {"text_body": "  \n\t ", "html_body": " \n "},
+        {"text_body": "", "html_body": '<div><img src="cid:synthetic"></div>'},
+        {"text_body": "", "html_body": '<a href="mailto:help@example.test"></a>'},
+    ],
+    ids=["empty", "whitespace-only", "image-only", "unsupported-link-only"],
+)
+def test_subject_without_usable_body_is_incomplete(bodies: dict[str, str]) -> None:
+    result = score_for(email=payload(**bodies))
+
+    assert result.risk_score == 0
+    assert result.verdict == "INCOMPLETE"
+    assert result.coverage.sufficient_for_no_significant_signals is False
+    assert len(result.coverage.reasons) == 1
+    assert "only the subject line" in result.coverage.reasons[0]
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"subject": "", "text_body": "Ordinary message content."},
+        {"text_body": "", "html_body": "<p>Ordinary message content.</p>"},
+        {"text_body": "Ordinary message content.", "html_body": ""},
+        {"text_body": "", "html_body": '<a href="https://docs.example.test/help"><img src="cid:synthetic"></a>'},
+        {"text_body": "https://docs.example.test/help", "html_body": ""},
+    ],
+    ids=["no-subject", "html-only", "text-only", "html-link-only", "text-link-only"],
+)
+def test_usable_body_or_supported_link_keeps_meaningful_verdict(fields: dict[str, str]) -> None:
+    result = score_for(email=payload(**fields))
+
+    assert result.verdict == "NO_SIGNIFICANT_SIGNALS"
+    assert result.coverage.reasons == ()
+
+
+def test_inconclusive_detectors_on_usable_content_do_not_force_incomplete() -> None:
+    result = score_for(
+        detector("url_deception", status=DetectorStatus.INCONCLUSIVE),
+        detector("credential_context", status=DetectorStatus.INCONCLUSIVE),
+    )
+
+    assert result.verdict == "NO_SIGNIFICANT_SIGNALS"
+
+
+def test_subject_only_positive_finding_at_threshold_remains_suspicious() -> None:
+    result = score_for(
+        detector("credential_context", finding("credential_secret_collection_request", sources=("subject",))),
+        email=payload(text_body="", html_body=""),
+    )
+
+    assert result.risk_score == 20
+    assert result.verdict == "SUSPICIOUS"
+    assert result.coverage.reasons == ()
+
+
+def test_subject_only_low_finding_is_incomplete_with_finding_preserved() -> None:
+    result = score_for(
+        detector("sender_identity", finding("sender_reply_to_domain_mismatch", sources=("from", "reply_to"))),
+        email=payload(text_body="", html_body=""),
+    )
+
+    assert result.verdict == "INCOMPLETE"
+    assert [(item.finding.id, item.effective_contribution) for item in result.scored_findings] == [
+        ("sender_reply_to_domain_mismatch", 5)
+    ]
+    assert "only the subject line" in result.coverage.reasons[0]
+
+
+def test_missing_sender_with_low_score_explains_incomplete() -> None:
+    result = score_for(
+        detector("sender_identity", status=DetectorStatus.INCONCLUSIVE),
+        detector("url_deception", finding("url_ip_address_host")),
+        email=payload(text_body="Status page http://192.0.2.10/a", **{"from": ""}),
+    )
+
+    assert result.risk_score == 5
+    assert result.verdict == "INCOMPLETE"
+    assert any("sender identity" in reason for reason in result.coverage.reasons)
 
 
 def test_unimplemented_families_are_limitations_not_clean_evidence() -> None:

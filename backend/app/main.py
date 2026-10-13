@@ -96,13 +96,14 @@ def _finding_from_detector_finding(finding: DetectorFinding, *, contribution: in
 
 
 def _public_limitations(scoring_result: ScoringResult, *, incomplete: bool) -> list[str]:
-    limitations = list(scoring_result.limitations)
-    if scoring_result.coverage.reasons:
-        limitations.extend(scoring_result.coverage.reasons)
+    # Coverage reasons lead the list so clients that show only the first few limitations still explain
+    # why an assessment was incomplete.
+    limitations = [*scoring_result.coverage.reasons, *scoring_result.limitations]
     if incomplete:
         limitations.insert(
             0,
-            "No meaningful risk score was produced; risk_score is a required-schema placeholder.",
+            "No meaningful risk score was produced, so the score is unavailable; the returned risk_score of 0 "
+            "is a required-schema placeholder and does not mean low risk.",
         )
     return list(dict.fromkeys(limitations))
 
