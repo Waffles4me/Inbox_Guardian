@@ -150,3 +150,13 @@ The same caveats apply: this is a small, author-written synthetic set, and the f
 - The subject is still joined to each body, so a pattern can span the end of the subject and the start of the body.
 - Quoted-reply lines (`>`) are skipped in plain text but the same content inside an HTML blockquote is still analysed. This predates the fix.
 - C3 and the seven false negatives are unchanged; recommended priorities 2 to 6 above still stand.
+
+## Addendum 2 - results after the security-bypass fix (2026-10-13)
+
+This addendum records a third run. Nothing above it has been revised.
+
+**What changed.** Commit `b86011f` requires the security-bypass verb and the security term to be in the same sentence and treats a nearby negation ("do not disable MFA", "will never ask you to bypass security checks") as a warning. It was prompted by a pre-submission audit, not by a failure in this set. The fixture and labels are unchanged (same SHA-256).
+
+**Result.** Per-case results are in [`evaluation-results-post-bypass-fix.md`](evaluation-results-post-bypass-fix.md). All 30 rows are identical to the post-B2 run: 8 true positives, 1 false positive (C3), 14 true negatives, 7 false negatives, 0 abstentions.
+
+That no case moved is itself a limitation of this set: the audit found eight benign phrasings the bypass rule flagged, and none of them was represented here. The set should not be read as covering benign security wording.
