@@ -191,7 +191,9 @@ inboxguardian/
 
 **Internal orchestration implementation (2026-10-13):** Added `backend/app/engine.py` to parse a validated `EmailPayload` once, run the three implemented detectors in deterministic order, preserve detector statuses/findings/evidence/limitations, and represent attachment, financial and NLP families as planned `NOT_RUN` checks. The engine does not score, assign verdicts, deduplicate or correlate evidence, change the public API, or wire into `/analyze`.
 
-**Next session/task:** Approve the smallest Method C scoring parameters and response-mapping plan needed to turn the internal engine output into a real Gmail result. Do not start WBS 2.5 attachment detection, Gmail UI replacement, NLP, or public API changes until the scoring and integration boundary is separately authorized.
+**Scoring specification approval (2026-10-13):** Recorded approved Method C v1 scoring policy in `docs/scoring-policy.md`. It inventories implemented finding IDs, approved rule contributions, family caps, verdict thresholds, coverage/INCOMPLETE handling, and zero correlation bonus. This is **not implemented** and does not complete WBS 2.9.
+
+**Next session/task:** Implement internal Method C v1 scoring and tests from `docs/scoring-policy.md`. Do not start WBS 2.5 attachment detection, Gmail UI replacement, NLP, or public API changes until the scoring and integration boundary is separately authorized.
 
 ## 9. References and design provenance
 
