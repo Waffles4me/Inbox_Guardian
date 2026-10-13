@@ -4,7 +4,7 @@ InboxGuardian is a 48-hour Upwind Security home-assignment project: a Gmail Add-
 
 The assignment requires a Google Workspace Gmail Add-on, a backend service the add-on can call, a clear maliciousness score/verdict/reasoning shown to the user, a public source repository, and a live demonstration against a real Gmail account. The full assignment brief is intentionally not published in this repository.
 
-Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. WBS 2.1 safe parsing/normalization, WBS 2.2 sender detection, WBS 2.3 deceptive URL detection, WBS 2.4 credential-context detection, internal detector orchestration, Method C v1 scoring, and backend `/analyze` response mapping are implemented with synthetic tests. The Gmail CardService UI still contains demo-specific wording and has not yet been adapted to present real scores.
+Current status: Gmail-to-backend integration proof of concept is complete. The unpublished Gmail Add-on has been synchronized with Apps Script, installed/authorized in a real Gmail account, and verified to call the local FastAPI backend through ngrok HTTPS. WBS 2.1 safe parsing/normalization, WBS 2.2 sender detection, WBS 2.3 deceptive URL detection, WBS 2.4 credential-context detection, internal detector orchestration, Method C v1 scoring, backend `/analyze` response mapping, and Gmail CardService real-result rendering are implemented with synthetic tests. The updated Gmail UI still requires live Apps Script synchronization and manual verification.
 
 ## Scope
 
@@ -14,7 +14,7 @@ Current status: Gmail-to-backend integration proof of concept is complete. The u
 - Method C v1 internal scoring is implemented: evidence deduplication, per-family caps, fixed heuristic weights, approved thresholds, coverage handling, and zero correlation bonus.
 - Explainable 0-100 heuristic risk index, verdict, evidence, limitations, and recommended action.
 - No LLM analysis, malware execution, URL fetching, auto-quarantine, or background scanning in the MVP.
-- Implemented detector findings and scored results are connected to backend `/analyze`; the Gmail UI still needs a separate CardService update before claiming end-to-end real-score display.
+- Implemented detector findings and scored results are connected to backend `/analyze`; the Gmail CardService source renders real backend results, pending live synchronization and manual verification.
 
 ## Repository Layout
 
@@ -140,13 +140,13 @@ Verified on 2026-10-12:
 Backend update on 2026-10-13:
 
 - `/analyze` now returns real parser -> engine -> scorer results in the existing response schema.
-- The existing Gmail UI source was intentionally not changed; it may still show demo-specific labels until the next CardService milestone.
+- `addon/Code.js` now renders verdict, heuristic risk index, findings, limitations and recommended action from the backend response. `INCOMPLETE` displays the score as unavailable rather than showing the placeholder `0/100`.
 
 Still required:
 
 1. Make startup/shutdown repeatable for backend and ngrok.
 2. Keep backend auth material in environment variables and Apps Script Properties only.
-3. Replace the Gmail result card's demo wording with real score, verdict, evidence and limitation display.
+3. Synchronize the reviewed Apps Script source and manually verify real-result display in Gmail.
 
 ## Apps Script Local Sync
 
@@ -195,9 +195,9 @@ Useful official docs:
 - Whether to add a small local startup helper after the manual startup flow remains stable.
 - Add-on-to-backend authentication rotation/replacement if the project grows beyond a single-user prototype.
 - Sensitive logging/redaction rules for future detector output.
-- Gmail CardService presentation of the backend's real scored response.
+- Live Gmail verification of the CardService real-result presentation after reviewed synchronization.
 - Whether authentication metadata can be trusted from available Gmail/Add-on data.
 
 ## Validation Status
 
-Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Automated tests cover the backend/add-on source contract, internal parser, internal detectors, internal detector orchestration, internal scoring, and backend response mapping. Do not claim detection accuracy until fixture evaluation and Gmail real-result presentation are implemented.
+Integration proof of concept has been manually verified through Gmail, Apps Script, ngrok HTTPS, and FastAPI. Automated tests cover the backend/add-on source contract, CardService real-result rendering source, internal parser, internal detectors, internal detector orchestration, internal scoring, and backend response mapping. Do not claim detection accuracy or completed live UI verification until reviewed Apps Script synchronization and manual Gmail testing are done.

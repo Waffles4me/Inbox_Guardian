@@ -16,7 +16,7 @@
 - Method C v1 is the approved internal scoring policy: fixed heuristic finding weights, detector-family caps, deterministic deduplication/accounting, and a zero correlation bonus.
 - Use a shared demo token in the `X-InboxGuardian-Token` header for the first single-user Apps Script-to-backend prototype.
 - Store the backend URL and demo token outside Git: backend environment variables locally, Apps Script Properties remotely.
-- The backend `/analyze` response now exposes real parser, detector and Method C scoring results; the Gmail CardService UI still contains demo-specific presentation code and must not be claimed as a verified real-score UI yet.
+- The backend `/analyze` response exposes real parser, detector and Method C scoring results; the Gmail CardService source now renders real backend results, pending live synchronization and manual verification.
 - Use ngrok HTTPS forwarding to `127.0.0.1:8000` for the local single-user integration demo.
 - Keep startup manual for now instead of adding an all-in-one script that might hide state or expose tokens.
 
@@ -31,7 +31,7 @@
 - WBS 2.4 credential-context findings are internal and unscored. The first credential detector redacts code-like values, ignores structurally identifiable quoted/forwarded content, and treats missing or ambiguous credential language as inconclusive rather than malicious.
 - Internal orchestration runs only the parser and implemented sender/URL/credential detectors. Planned attachment, financial and NLP families are represented as `NOT_RUN` when included, with an explicit reason that no check was performed.
 - Method C v1 scoring consumes `EngineResult`, preserves accounting, treats risk score as a heuristic index, and is wired to backend `/analyze`.
-- For `INCOMPLETE`, `/analyze` returns `risk_score: 0` only as a required-schema placeholder, adds an explicit limitation, and zeroes public finding contributions so the placeholder is not presented as a meaningful low-risk score.
+- For `INCOMPLETE`, `/analyze` returns `risk_score: 0` only as a required-schema placeholder and adds an explicit limitation. The Gmail UI displays the score as unavailable and still shows any positive findings returned by the backend.
 - Unexpected route-level analysis errors return a bounded HTTP 500 instead of a successful reassuring assessment.
 
 ## Still Open
@@ -39,5 +39,5 @@
 - Rotation/replacement plan for the demo token if the project becomes more than a single-user prototype.
 - Sensitive logging and redaction rules for future detector findings and operational logs.
 - Whether Gmail authentication metadata is available with trustworthy provenance.
-- Gmail CardService presentation of the backend's real scored response.
+- Live Gmail verification of the updated CardService real-result presentation.
 - Whether to add a public-suffix/registered-domain library for more precise domain relationship checks.

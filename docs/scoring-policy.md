@@ -151,4 +151,4 @@ Backend `/analyze` mapping:
 - Returns `risk_score`, `verdict`, scored detector findings, limitations, recommended action and `detector_version`.
 - Uses `risk_score: 0` as the required-schema placeholder for `INCOMPLETE`, with an explicit limitation that no meaningful score was produced.
 - Preserves contribution reconciliation for completed assessments by mapping effective scored contributions into public findings.
-- Does not alter Gmail CardService presentation; the existing add-on UI still needs a separate update before claiming real-score display.
+- Is rendered by the local Gmail CardService source after the reviewed UI update; live Gmail synchronization and manual verification are still required before claiming deployed real-score display.

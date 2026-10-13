@@ -8,7 +8,7 @@ Current flow:
 Gmail Add-on -> ngrok HTTPS -> 127.0.0.1:8000 -> FastAPI
 ```
 
-The backend now returns real parser -> detector engine -> Method C scorer results. The Gmail CardService UI has not yet been adapted and may still contain demo-specific wording.
+The backend now returns real parser -> detector engine -> Method C scorer results. The Gmail CardService source renders real results after it is synchronized to Apps Script; this local source change still needs live manual verification.
 
 ## Prerequisites
 
@@ -136,7 +136,7 @@ https://script.google.com/home/projects/1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGb
 3. Open InboxGuardian from the Gmail side panel.
 4. Confirm the card shows the selected email subject and sender.
 5. Click **Analyze Email**.
-6. Confirm the backend call completes. The current Gmail result card may still use demo wording until the CardService UI is updated in the next milestone.
+6. Confirm the result card displays a verdict, heuristic risk index or score-unavailable state, findings when present, limitations, and recommended action.
 
 This is a manual integration check. It is not covered by automated tests.
 

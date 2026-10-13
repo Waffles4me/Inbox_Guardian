@@ -1,12 +1,12 @@
 # Gmail Integration Runbook
 
-This runbook prepares the first vertical slice:
+This runbook prepares and verifies the Gmail vertical slice:
 
 ```text
-Opened Gmail message -> Gmail Add-on -> FastAPI backend -> demo result card
+Opened Gmail message -> Gmail Add-on -> FastAPI backend -> real result card
 ```
 
-The current result is deliberately `DEMO / NOT ANALYZED`. It proves connectivity only and must not be presented as a security assessment.
+The current local Apps Script source renders real backend assessments using the existing `/analyze` response schema. Live Gmail verification still requires reviewed `clasp push` and a running HTTPS backend.
 
 ## Current Local State
 
@@ -90,7 +90,7 @@ Do not store these values in Git.
 7. Open InboxGuardian from the Gmail side panel.
 8. Confirm the card shows the subject and sender.
 9. Click **Analyze Email**.
-10. Confirm the result says `DEMO / NOT ANALYZED` and does not claim a real security score.
+10. Confirm the result card shows the backend verdict, a heuristic risk index when complete or score unavailable when incomplete, returned findings, limitations and recommended action.
 
 ## Expected Failure States
 
@@ -100,3 +100,4 @@ Do not store these values in Git.
 - Invalid backend JSON: card reports unexpected backend response.
 
 Do not proceed to real phishing detection rules until this live Gmail round-trip works.
+Do not claim live Gmail real-result verification until this updated source has been synchronized and manually tested.
