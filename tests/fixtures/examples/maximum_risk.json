@@ -1,0 +1,56 @@
+{
+  "_note": "Synthetic, fabricated messages for the maximum-risk demonstration. Reserved domains (.test, .example) and TEST-NET IP 192.0.2.0/24 only; no link works and no attachment exists. Not a real-world benchmark.",
+  "five_family_maximum": {
+    "subject": "Urgent account verification and payment",
+    "from": "accounts.example.test <notice@attacker.test>",
+    "reply_to": "desk@other-reply.test",
+    "text_body": "Urgent: your account will be suspended within 12 hours. Reply with your password and the six-digit verification code to keep access.\n\nBuy five gift cards today and email me the redemption codes; keep this confidential.\n\nSend the invoice payment to our new bank account today and skip the usual callback verification.\n\nReview the statement at http://192.0.2.10/statement\n",
+    "html_body": "<p>Urgent: your account will be suspended within 12 hours. Reply with your password and the six-digit verification code to keep access.</p><p>Buy five gift cards today and email me the redemption codes; keep this confidential.</p><p>Send the invoice payment to our new bank account today and skip the usual callback verification.</p><p>Review the statement at http://192.0.2.10/statement</p><p><a href=\"https://accounts.example.test.attacker.test/login\">https://accounts.example.test</a></p><p><a href=\"https://login.attacker.test/form\">https://payments.example.test/portal</a></p>",
+    "attachment_metadata": [
+      {
+        "filename": "invoice.pdf.exe",
+        "content_type": "application/octet-stream",
+        "size_bytes": 10,
+        "unavailable_fields": []
+      },
+      {
+        "filename": "setup.msi",
+        "content_type": "application/octet-stream",
+        "size_bytes": 10,
+        "unavailable_fields": []
+      }
+    ],
+    "attachment_collection": {
+      "state": "COLLECTED",
+      "regular_count": 2,
+      "inline_count": 0,
+      "omitted_count": 0,
+      "omitted_extensions": [],
+      "omitted_name_flags": [],
+      "reasons": []
+    }
+  },
+  "gmail_reproducible": {
+    "subject": "Urgent account verification and payment",
+    "from": "Test User <ig.selftest@gmail.example>",
+    "text_body": "Urgent: your account will be suspended within 12 hours. Reply with your password and the six-digit verification code to keep access.\n\nBuy five gift cards today and email me the redemption codes; keep this confidential.\n\nSend the invoice payment to our new bank account today and skip the usual callback verification.\n\nReview the statement at http://192.0.2.10/statement\n",
+    "html_body": "<p>Urgent: your account will be suspended within 12 hours. Reply with your password and the six-digit verification code to keep access.</p><p>Buy five gift cards today and email me the redemption codes; keep this confidential.</p><p>Send the invoice payment to our new bank account today and skip the usual callback verification.</p><p>Review the statement at http://192.0.2.10/statement</p><p><a href=\"https://accounts.example.test.attacker.test/login\">https://accounts.example.test</a></p><p><a href=\"https://login.attacker.test/form\">https://payments.example.test/portal</a></p>",
+    "attachment_metadata": [
+      {
+        "filename": "ig-page.html",
+        "content_type": "text/html",
+        "size_bytes": 10,
+        "unavailable_fields": []
+      }
+    ],
+    "attachment_collection": {
+      "state": "COLLECTED",
+      "regular_count": 1,
+      "inline_count": 0,
+      "omitted_count": 0,
+      "omitted_extensions": [],
+      "omitted_name_flags": [],
+      "reasons": []
+    }
+  }
+}

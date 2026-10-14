@@ -25,7 +25,8 @@ The status column says whether the behaviour exists in the code today. Scores ar
 | 7 | Backend unavailable | Implemented, checked in Gmail | `07-backend-unavailable.png` |
 | 8 | Attachments listed and name-only assessed | Implemented, not yet checked in Gmail | `08-attachments-name-only.png` |
 | 9 | Suspicious attachment | Implemented, not yet checked in Gmail | `09-suspicious-attachment.png` |
-| 10 | Payment or invoice fraud | **Planned**, not implemented | `10-financial-fraud.png` |
+| 10 | Payment or invoice fraud | Implemented, not yet checked in Gmail | `10-financial-fraud.png` |
+| 11 | Maximum risk (100/100) | Implemented, automated test; not yet checked in Gmail | `11-maximum-risk.png` |
 
 ### 1. Benign email
 
@@ -82,6 +83,16 @@ The status column says whether the behaviour exists in the code today. Scores ar
 - **The screenshot should show:** that the finding describes the name pattern, never the file contents, and that the card states no malware analysis was performed.
 
 
-### 10. Payment or invoice fraud (planned)
+### 10. Payment or invoice fraud
 
-Not implemented. Once a payment-fraud detector exists, a suitable example is an urgent request to pay an invoice into "new bank details" without using the usual contact. Use invented account details that cannot belong to anyone.
+- **Message:** one sentence that asks for a payment to new bank details and to skip the usual verification, for example "Send the invoice payment to our new bank account today and skip the usual callback verification." Use invented details that cannot belong to anyone.
+- **Expected result:** `SUSPICIOUS`, 25/100, with the finding "Financial verification bypass request", from a backend reporting `engine-0.3.0+scoring-0.3.0`.
+- **Known limit:** each financial rule matches within one sentence, so the same request split across several sentences may score 0.
+
+### 11. Maximum risk (100/100)
+
+- **Message:** deceptive links, a credential request, gift-card and payment-bypass wording, and a harmless `ig-page.html` attachment, all synthetic.
+- **Expected result:** `HIGH_RISK`, 100/100, from a backend reporting `engine-0.3.0+scoring-0.3.0`.
+- **Full instructions, Gmail draft and limits:** [maximum-risk.md](maximum-risk.md).
+
+**INSERT SCREENSHOT HERE**
