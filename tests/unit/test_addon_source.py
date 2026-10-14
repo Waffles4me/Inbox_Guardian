@@ -125,6 +125,74 @@ def test_manifest_declares_gmail_contextual_trigger_and_minimal_scopes() -> None
     }
 
 
+ADDON_CODE = "\n".join(line.split("//", 1)[0] if line.lstrip().startswith("//") else line
+                       for line in ADDON_SOURCE.splitlines())
+
+
+def function_body(name: str) -> str:
+    """The code of one top-level function, without its declaration line and full-line comments."""
+    start = ADDON_CODE.index(f"\nfunction {name}(")
+    end = ADDON_CODE.find("\nfunction ", start + 1)
+    body = ADDON_CODE[start : end if end != -1 else len(ADDON_CODE)]
+    return body.split("\n", 2)[2]
+
+
+def test_addon_never_calls_attachment_content_methods() -> None:
+    for forbidden in ("getBytes", "copyBlob", "getDataAsString", "getAs(", "getHash", "getRawContent", "getAllBlobs"):
+        assert forbidden not in ADDON_CODE
+
+
+def test_addon_reads_attachments_only_when_analyze_email_runs() -> None:
+    readers = {"collectAttachmentMetadata_", "countInlineImages_"}
+    functions = [line.split("(", 1)[0].removeprefix("function ") for line in ADDON_SOURCE.splitlines()
+                 if line.startswith("function ")]
+
+    assert {name for name in functions if ".getAttachments(" in function_body(name)} == readers
+    assert {name for name in functions if "collectAttachmentMetadata_(e)" in function_body(name)} == {
+        "collectAttachmentsSafely_"
+    }
+    assert {name for name in functions if "collectAttachmentsSafely_(e)" in function_body(name)} == {"analyzeEmail"}
+    for name in ("onGmailMessageOpen", "getCurrentEmail_"):
+        assert "collectAttachment" not in function_body(name)
+
+
+def test_addon_attachment_collection_logs_nothing() -> None:
+    for name in ("collectAttachmentsSafely_", "unavailableAttachments_", "collectAttachmentMetadata_",
+                 "countInlineImages_", "describeAttachment_", "readAttachmentField_", "clipAttachmentName_"):
+        body = function_body(name)
+        assert "console." not in body and "Logger." not in body
+
+
+def test_addon_source_contains_no_invisible_or_direction_control_characters() -> None:
+    hidden = [
+        hex(ord(character)) for character in ADDON_SOURCE
+        if (ord(character) < 0x20 and character not in "\n\r\t")
+        or 0x7F <= ord(character) <= 0x9F
+        or 0x200B <= ord(character) <= 0x200F
+        or 0x202A <= ord(character) <= 0x202E
+        or 0x2060 <= ord(character) <= 0x2069
+        or ord(character) == 0xFEFF
+    ]
+    assert hidden == []
+
+
+def test_addon_attachment_limits_match_the_backend_model() -> None:
+    from backend.app.models import AttachmentMetadata, EmailPayload
+
+    list_limit = next(item.max_length for item in EmailPayload.model_fields["attachment_metadata"].metadata
+                      if hasattr(item, "max_length"))
+    name_limit = next(item.max_length for item in AttachmentMetadata.model_fields["filename"].metadata
+                      if hasattr(item, "max_length"))
+    type_limit = next(item.max_length for item in AttachmentMetadata.model_fields["content_type"].metadata
+                      if hasattr(item, "max_length"))
+
+    assert "var MAX_ATTACHMENTS_SENT = 25;" in ADDON_SOURCE and list_limit == 25
+    assert "var MAX_ATTACHMENT_NAME_CODE_POINTS = 255;" in ADDON_SOURCE and name_limit >= 255
+    assert "var MAX_ATTACHMENT_TYPE_CODE_POINTS = 255;" in ADDON_SOURCE and type_limit >= 255
+    assert "var MAX_ATTACHMENTS_READ = 100;" in ADDON_SOURCE
+    assert "var MAX_ATTACHMENT_COLLECTION_MS = 5000;" in ADDON_SOURCE
+
+
 def test_addon_adds_no_links_remote_images_or_extra_network_calls() -> None:
     assert ADDON_SOURCE.count("UrlFetchApp.fetch") == 1
     for forbidden in ("setOpenLink", "newOpenLink", "setIconUrl", "setImageUrl", "newImage(", "<a href", "http://"):

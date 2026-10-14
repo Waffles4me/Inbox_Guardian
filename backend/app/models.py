@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -11,10 +11,36 @@ Verdict = Literal[
 ]
 
 
+ShortCode = Annotated[str, Field(max_length=32)]
+
+
+class AttachmentNameClip(BaseModel):
+    # Describes the middle of an overlong filename that the add-on removed before sending it.
+    at: int = Field(ge=0, le=512)
+    original_length: int = Field(ge=0, le=1_000_000)
+    removed_dot_count: int = Field(default=0, ge=0, le=1_000_000)
+    removed_whitespace_only: bool = False
+    removed_flags: list[ShortCode] = Field(default_factory=list, max_length=8)
+
+
 class AttachmentMetadata(BaseModel):
     filename: str = Field(default="", max_length=512)
     content_type: str = Field(default="", max_length=255)
     size_bytes: int | None = Field(default=None, ge=0)
+    name_clip: AttachmentNameClip | None = None
+    content_type_clipped: bool = False
+    unavailable_fields: list[ShortCode] = Field(default_factory=list, max_length=3)
+
+
+class AttachmentCollection(BaseModel):
+    # A bounded string, not a Literal: an unrecognised state must not fail the whole request.
+    state: ShortCode
+    regular_count: int | None = Field(default=None, ge=0, le=100_000)
+    inline_count: int | None = Field(default=None, ge=0, le=100_000)
+    omitted_count: int = Field(default=0, ge=0, le=100_000)
+    omitted_extensions: list[Annotated[str, Field(max_length=16)]] = Field(default_factory=list, max_length=50)
+    omitted_name_flags: list[ShortCode] = Field(default_factory=list, max_length=8)
+    reasons: list[ShortCode] = Field(default_factory=list, max_length=8)
 
 
 class EmailPayload(BaseModel):
@@ -25,6 +51,8 @@ class EmailPayload(BaseModel):
     html_body: str = Field(default="", max_length=50_000)
     headers: dict[str, str] = Field(default_factory=dict)
     attachment_metadata: list[AttachmentMetadata] = Field(default_factory=list, max_length=25)
+    # Absent from V1 clients; absence means attachments were not collected, not that there are none.
+    attachment_collection: AttachmentCollection | None = None
 
     @field_validator("headers")
     @classmethod

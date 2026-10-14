@@ -1,11 +1,22 @@
 import os
 import secrets
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from .detectors.base import DetectorFinding, DetectorStatus
 from .engine import EngineResult, analyze_with_detectors
-from .models import AnalyzeRequest, AnalyzeResponse, Finding
+from .models import (
+    AnalyzeRequest,
+    AnalyzeResponse,
+    AttachmentCollection,
+    AttachmentMetadata,
+    AttachmentNameClip,
+    EmailPayload,
+    Finding,
+)
+from .parsing import AttachmentCollectionState
 from .scoring import ScoredFinding, ScoringResult, score_engine_result
 
 API_TOKEN_ENV = "INBOXGUARDIAN_API_TOKEN"
@@ -20,6 +31,18 @@ app = FastAPI(
     title="InboxGuardian Backend",
     version="0.1.0",
     description="Backend skeleton for the InboxGuardian Gmail Add-on.",
+)
+
+MAX_VALIDATION_ERRORS = 20
+VALIDATION_LOCATION_ROOTS = frozenset({"body", "query", "header", "path", "cookie"})
+# Location parts that name a request-schema field. Anything else in a location, such as a header name taken
+# from the message, came from the request and is replaced.
+SCHEMA_FIELD_NAMES = frozenset(
+    name
+    for model in (AnalyzeRequest, EmailPayload, AttachmentMetadata, AttachmentNameClip, AttachmentCollection)
+    for field_name, info in model.model_fields.items()
+    for name in (field_name, info.alias)
+    if name
 )
 
 
@@ -39,6 +62,35 @@ def require_api_token(x_inboxguardian_token: str | None = Header(default=None)) 
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid backend authentication.",
         )
+
+
+@app.exception_handler(RequestValidationError)
+async def sanitized_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    # FastAPI parses the body before running dependencies, so check the token here as well: an
+    # unauthenticated request gets the same 401 or 503 as any other and learns nothing about validation.
+    try:
+        require_api_token(request.headers.get("X-InboxGuardian-Token"))
+    except HTTPException as auth_error:
+        return JSONResponse(status_code=auth_error.status_code, content={"detail": auth_error.detail})
+    # The default handler echoes the rejected input and parser messages, which can be message content or
+    # attachment names. Only the location (schema field names and list positions) and the error type are
+    # returned, and nothing is logged. (Literal 422: Starlette renamed the status constant.)
+    errors = [
+        {"loc": [_safe_location_part(part) for part in error.get("loc", ())], "type": str(error.get("type", "invalid"))}
+        for error in exc.errors()[:MAX_VALIDATION_ERRORS]
+    ]
+    return JSONResponse(
+        status_code=422,
+        content={"detail": errors, "message": "Request validation failed; rejected values are not returned."},
+    )
+
+
+def _safe_location_part(part: object) -> str | int:
+    if isinstance(part, int) and not isinstance(part, bool):
+        return part
+    if isinstance(part, str) and (part in SCHEMA_FIELD_NAMES or part in VALIDATION_LOCATION_ROOTS):
+        return part
+    return "*"
 
 
 @app.get("/health")
@@ -117,6 +169,7 @@ def _public_limitations(
         *scoring_result.coverage.reasons,
         *coverage_gaps,
         *_planned_checks_not_run(engine_result),
+        *_attachment_status_lines(engine_result),
         *scoring_result.limitations,
     ]
     if incomplete:
@@ -138,6 +191,28 @@ def _planned_checks_not_run(engine_result: EngineResult) -> list[str]:
         return []
     listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
     return [f"Not checked: {listed}. These planned checks are not implemented, so nothing was assessed for them."]
+
+
+def _attachment_status_lines(engine_result: EngineResult) -> list[str]:
+    # Counts only, never filenames. Collected attachments are reported as not assessed, so listing them is
+    # never read as an attachment check. A V1 client sends no collection state, and the "Not checked" line
+    # already covers that case, so its output is unchanged.
+    coverage = engine_result.parsed_email.attachment_coverage
+    not_assessed = "they were not assessed because attachment checks are not implemented yet."
+    if coverage.state == AttachmentCollectionState.UNKNOWN:
+        if coverage.declared_state is None:
+            return []
+        return ["Attachments: the attachment information received was inconsistent, so attachments were not assessed."]
+    if coverage.state == AttachmentCollectionState.NONE:
+        return ["Attachments: Gmail listed none. Inline images and linked Drive files are not counted."]
+    if coverage.state == AttachmentCollectionState.UNAVAILABLE:
+        return ["Attachments: attachment information could not be collected from Gmail, so attachments were not assessed."]
+    if coverage.state == AttachmentCollectionState.TRUNCATED:
+        return [
+            f"Attachments: Gmail listed {coverage.regular_count} and details for {coverage.listed_count} were "
+            f"received; {not_assessed}"
+        ]
+    return [f"Attachments: Gmail listed {coverage.listed_count}; {not_assessed}"]
 
 
 def _recommended_action(scoring_result: ScoringResult, *, incomplete: bool) -> str:

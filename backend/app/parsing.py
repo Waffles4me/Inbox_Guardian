@@ -8,12 +8,38 @@ from html.parser import HTMLParser
 import re
 from urllib.parse import urlsplit, urlunsplit
 
-from .models import EmailPayload
+from .models import AttachmentCollection, AttachmentMetadata, EmailPayload
 
 
 MAX_URLS = 50
 MAX_URL_LENGTH = 2_048
 MAX_VISIBLE_TEXT_CHARS = 20_000
+
+# Filename character classes as code point ranges, so this file contains no invisible characters itself.
+# They must match NAME_FLAG_RANGES in addon/Code.js; a test compares the two.
+NAME_FLAG_RANGES: dict[str, tuple[tuple[int, int], ...]] = {
+    "BIDI_CONTROL": ((0x202A, 0x202E), (0x2066, 0x2069)),
+    "ZERO_WIDTH": ((0x200B, 0x200D), (0x2060, 0x2060), (0xFEFF, 0xFEFF)),
+    "CONTROL_CHAR": ((0x0000, 0x001F), (0x007F, 0x009F)),
+}
+_NAME_FLAG_PATTERNS = {
+    flag: re.compile("[" + "".join(f"{re.escape(chr(first))}-{re.escape(chr(last))}" for first, last in ranges) + "]")
+    for flag, ranges in NAME_FLAG_RANGES.items()
+}
+KNOWN_NAME_FLAGS = frozenset({*NAME_FLAG_RANGES, "MULTIPLE_DOTS"})
+ATTACHMENT_REASONS = frozenset(
+    {
+        "collection_error",
+        "unexpected_error",
+        "count_limit",
+        "time_limit",
+        "names_not_read",
+        "extensions_limit",
+        "field_limit",
+        "field_unavailable",
+    }
+)
+ATTACHMENT_FIELDS = frozenset({"filename", "content_type", "size_bytes"})
 
 
 class ParseStatus(StrEnum):
@@ -29,6 +55,15 @@ class EvidenceSource(StrEnum):
     REPLY_TO = "reply_to"
     TEXT_BODY = "text_body"
     HTML_BODY = "html_body"
+    ATTACHMENTS = "attachments"
+
+
+class AttachmentCollectionState(StrEnum):
+    COLLECTED = "COLLECTED"
+    NONE = "NONE"
+    TRUNCATED = "TRUNCATED"
+    UNAVAILABLE = "UNAVAILABLE"
+    UNKNOWN = "UNKNOWN"
 
 
 @dataclass(frozen=True)
@@ -76,6 +111,46 @@ class ParsedHtmlLink:
 
 
 @dataclass(frozen=True)
+class ParsedAttachment:
+    """Untrusted attachment metadata. Nothing here was opened, downloaded or executed."""
+
+    # One segment for an intact name; head and tail for a clipped one. The segments were not adjacent in
+    # the original name and must never be joined as if they were.
+    name_segments: tuple[str, ...]
+    content_type: str
+    size_bytes: int | None
+    name_original_length: int | None = None
+    removed_dot_count: int = 0
+    removed_whitespace_only: bool = False
+    # Character classes found in any part of the name, including a clipped-out middle.
+    name_flags: frozenset[str] = frozenset()
+    content_type_clipped: bool = False
+    unavailable_fields: tuple[str, ...] = ()
+
+    @property
+    def name_clipped(self) -> bool:
+        return len(self.name_segments) > 1
+
+    @property
+    def is_partial(self) -> bool:
+        return self.name_clipped or self.content_type_clipped or bool(self.unavailable_fields)
+
+
+@dataclass(frozen=True)
+class AttachmentCoverage:
+    # UNKNOWN means not collected (or not trustworthy), never that the message has no attachments.
+    state: AttachmentCollectionState = AttachmentCollectionState.UNKNOWN
+    declared_state: str | None = None
+    regular_count: int | None = None
+    listed_count: int = 0
+    inline_count: int | None = None
+    omitted_count: int = 0
+    omitted_extensions: tuple[str, ...] = ()
+    omitted_name_flags: frozenset[str] = frozenset()
+    reasons: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class ParsedEmail:
     subject: str
     text_body: str
@@ -86,6 +161,8 @@ class ParsedEmail:
     html_visible_text: str
     issues: tuple[ParseIssue, ...] = field(default_factory=tuple)
     input_completeness: ParseStatus = ParseStatus.UNKNOWN
+    attachments: tuple[ParsedAttachment, ...] = field(default_factory=tuple)
+    attachment_coverage: AttachmentCoverage = field(default_factory=AttachmentCoverage)
 
 
 _TEXT_URL_RE = re.compile(r"https?://[^\s<>'\"]+", re.IGNORECASE)
@@ -116,6 +193,9 @@ def parse_email_payload(payload: EmailPayload) -> ParsedEmail:
             )
         )
 
+    attachments = tuple(_parse_attachment(item, issues) for item in payload.attachment_metadata)
+    attachment_coverage = _attachment_coverage(payload.attachment_collection, attachments, issues)
+
     return ParsedEmail(
         subject=payload.subject,
         text_body=payload.text_body,
@@ -126,7 +206,98 @@ def parse_email_payload(payload: EmailPayload) -> ParsedEmail:
         html_visible_text=html_visible_text,
         issues=tuple(issues),
         input_completeness=ParseStatus.UNKNOWN,
+        attachments=attachments,
+        attachment_coverage=attachment_coverage,
     )
+
+
+def _parse_attachment(item: AttachmentMetadata, issues: list[ParseIssue]) -> ParsedAttachment:
+    # Metadata only: names and types are untrusted strings and are kept as received.
+    unavailable = [field_name for field_name in dict.fromkeys(item.unavailable_fields) if field_name in ATTACHMENT_FIELDS]
+    clip = item.name_clip
+    if clip is None:
+        segments: tuple[str, ...] = (item.filename,)
+    elif clip.at <= len(item.filename):
+        segments = (item.filename[: clip.at], item.filename[clip.at :])
+    else:
+        # The clip position cannot be trusted, so neither can any split of the name.
+        segments = ("",)
+        if "filename" not in unavailable:
+            unavailable.append("filename")
+        _append_issue(
+            issues,
+            "attachment_name_clip_invalid",
+            EvidenceSource.ATTACHMENTS,
+            "An attachment name clip position was outside the received name.",
+        )
+
+    flags = {flag for flag, pattern in _NAME_FLAG_PATTERNS.items() if any(pattern.search(part) for part in segments)}
+    if clip is not None:
+        flags.update(flag for flag in clip.removed_flags if flag in KNOWN_NAME_FLAGS)
+    return ParsedAttachment(
+        name_segments=segments,
+        content_type=item.content_type,
+        size_bytes=item.size_bytes,
+        name_original_length=clip.original_length if clip else None,
+        removed_dot_count=clip.removed_dot_count if clip else 0,
+        removed_whitespace_only=clip.removed_whitespace_only if clip else False,
+        name_flags=frozenset(flags),
+        content_type_clipped=item.content_type_clipped,
+        unavailable_fields=tuple(unavailable),
+    )
+
+
+def _attachment_coverage(
+    collection: AttachmentCollection | None,
+    attachments: tuple[ParsedAttachment, ...],
+    issues: list[ParseIssue],
+) -> AttachmentCoverage:
+    if collection is None:
+        # V1 clients send no collection state: attachments were not collected, which is not an input problem.
+        return AttachmentCoverage(listed_count=len(attachments))
+    reasons = tuple(reason for reason in dict.fromkeys(collection.reasons) if reason in ATTACHMENT_REASONS)
+    state = _consistent_attachment_state(collection, attachments, reasons)
+    if state is None:
+        _append_issue(
+            issues,
+            "attachment_collection_inconsistent",
+            EvidenceSource.ATTACHMENTS,
+            "Attachment collection state did not match the attachment list.",
+        )
+        state = AttachmentCollectionState.UNKNOWN
+    return AttachmentCoverage(
+        state=state,
+        declared_state=collection.state,
+        regular_count=collection.regular_count,
+        listed_count=len(attachments),
+        inline_count=collection.inline_count,
+        omitted_count=collection.omitted_count,
+        omitted_extensions=tuple(dict.fromkeys(ext.casefold() for ext in collection.omitted_extensions if ext)),
+        omitted_name_flags=frozenset(flag for flag in collection.omitted_name_flags if flag in KNOWN_NAME_FLAGS),
+        reasons=reasons,
+    )
+
+
+def _consistent_attachment_state(
+    collection: AttachmentCollection,
+    attachments: tuple[ParsedAttachment, ...],
+    reasons: tuple[str, ...],
+) -> AttachmentCollectionState | None:
+    # A contradiction returns None rather than the more favourable reading.
+    listed = len(attachments)
+    partial = any(attachment.is_partial for attachment in attachments)
+    accounted = collection.regular_count is not None and collection.regular_count == listed + collection.omitted_count
+    if collection.state == AttachmentCollectionState.NONE:
+        consistent = listed == 0 and collection.regular_count == 0 and collection.omitted_count == 0
+    elif collection.state == AttachmentCollectionState.COLLECTED:
+        consistent = listed > 0 and accounted and collection.omitted_count == 0 and not partial
+    elif collection.state == AttachmentCollectionState.TRUNCATED:
+        consistent = bool(reasons) and accounted and (collection.omitted_count > 0 or partial)
+    elif collection.state == AttachmentCollectionState.UNAVAILABLE:
+        consistent = listed == 0 and bool(reasons)
+    else:
+        consistent = False
+    return AttachmentCollectionState(collection.state) if consistent else None
 
 
 def parse_mailbox(raw_value: str, source: EvidenceSource, issues: list[ParseIssue] | None = None) -> ParsedMailbox:

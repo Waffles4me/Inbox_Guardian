@@ -2,6 +2,26 @@ var BACKEND_URL_PROPERTY = 'INBOXGUARDIAN_BACKEND_URL';
 var API_TOKEN_PROPERTY = 'INBOXGUARDIAN_API_TOKEN';
 var MAX_BODY_CHARS = 50000;
 
+// Attachment metadata bounds. The backend rejects a request over its limits, so clipping happens here,
+// and every clip or omission is reported in attachment_collection rather than dropped silently.
+var MAX_ATTACHMENTS_SENT = 25;
+var MAX_ATTACHMENTS_READ = 100;
+var MAX_ATTACHMENT_COLLECTION_MS = 5000;
+var MAX_ATTACHMENT_NAME_CODE_POINTS = 255;
+var ATTACHMENT_NAME_HEAD_CODE_POINTS = 64;
+var MAX_ATTACHMENT_TYPE_CODE_POINTS = 255;
+var MAX_EXTENSION_CODE_POINTS = 16;
+var MAX_OMITTED_EXTENSIONS = 50;
+var MAX_ATTACHMENT_COUNT_VALUE = 1000000;
+// Filename character classes as code point ranges, so this file contains no invisible characters itself.
+// They must match NAME_FLAG_RANGES in backend/app/parsing.py; a test compares the two.
+var NAME_FLAG_RANGES = {
+  BIDI_CONTROL: [[0x202A, 0x202E], [0x2066, 0x2069]],
+  ZERO_WIDTH: [[0x200B, 0x200D], [0x2060, 0x2060], [0xFEFF, 0xFEFF]],
+  CONTROL_CHAR: [[0x0000, 0x001F], [0x007F, 0x009F]]
+};
+var NAME_FLAG_PATTERNS = buildNameFlagPatterns_(NAME_FLAG_RANGES);
+
 // Rendering bounds. Backend text is untrusted, so every list and string shown on the card is capped.
 var MAX_PRIMARY_FINDINGS = 3;
 var MAX_RENDERED_FINDINGS = 12;
@@ -85,6 +105,10 @@ function onGmailMessageOpen(e) {
 
 function analyzeEmail(e) {
   var email = getCurrentEmail_(e);
+  // Attachments are read only when the user asks for an analysis, never on message open.
+  var attachments = collectAttachmentsSafely_(e);
+  email.attachmentCollection = attachments.collection;
+  email.attachments = attachments.items;
   var result;
   try {
     result = callBackend_(email);
@@ -142,7 +166,8 @@ function callBackend_(email) {
         text_body: email.textBody,
         html_body: email.htmlBody,
         headers: {},
-        attachment_metadata: []
+        attachment_metadata: email.attachments || [],
+        attachment_collection: email.attachmentCollection
       }
     })
   });
@@ -178,6 +203,216 @@ function validateBackendResult_(result) {
   }
   if (typeof result.recommended_action !== 'string' || typeof result.detector_version !== 'string') {
     throw new Error('Unexpected backend response.');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Attachment metadata collection
+// ---------------------------------------------------------------------------
+
+// Attachment metadata is optional evidence: an unexpected failure while collecting it must not stop the
+// analysis. It is reported as UNAVAILABLE, never as NONE, and the error is neither logged nor shown.
+function collectAttachmentsSafely_(e) {
+  try {
+    return collectAttachmentMetadata_(e);
+  } catch (error) {
+    return unavailableAttachments_('unexpected_error');
+  }
+}
+
+function unavailableAttachments_(reason) {
+  return {
+    collection: {
+      state: 'UNAVAILABLE',
+      regular_count: null,
+      inline_count: null,
+      omitted_count: 0,
+      omitted_extensions: [],
+      omitted_name_flags: [],
+      reasons: [reason]
+    },
+    items: []
+  };
+}
+
+// Reads only each attachment's name, declared type and size. Content methods (getBytes, copyBlob,
+// getDataAsString, getAs, getHash) are never called, and nothing collected here is logged.
+// Relies on getCurrentEmail_ having set the current-message access token in this execution.
+function collectAttachmentMetadata_(e) {
+  var started = Date.now();
+  var message;
+  var attachments;
+  try {
+    message = GmailApp.getMessageById(e.gmail.messageId);
+    attachments = message.getAttachments({includeInlineImages: false, includeAttachments: true});
+  } catch (error) {
+    return unavailableAttachments_('collection_error');
+  }
+  var collection = {
+    state: 'COLLECTED',
+    regular_count: Math.min(attachments.length, MAX_ATTACHMENT_COUNT_VALUE),
+    inline_count: countInlineImages_(message),
+    omitted_count: 0,
+    omitted_extensions: [],
+    omitted_name_flags: [],
+    reasons: []
+  };
+
+  var items = [];
+  var omittedExtensions = {};
+  var omittedFlags = {};
+  attachments.forEach(function(attachment, index) {
+    var inBudget = index < MAX_ATTACHMENTS_READ && Date.now() - started < MAX_ATTACHMENT_COLLECTION_MS;
+    if (inBudget && items.length < MAX_ATTACHMENTS_SENT) {
+      items.push(describeAttachment_(attachment));
+      return;
+    }
+    collection.omitted_count += 1;
+    addAttachmentReason_(collection.reasons, items.length < MAX_ATTACHMENTS_SENT ? 'time_limit' : 'count_limit');
+    var name = inBudget ? readAttachmentField_(function() { return attachment.getName(); }) : null;
+    if (name === null) {
+      addAttachmentReason_(collection.reasons, 'names_not_read');
+      return;
+    }
+    name = String(name);
+    var extension = finalExtension_(name);
+    if (extension && !omittedExtensions[extension]) {
+      if (Object.keys(omittedExtensions).length < MAX_OMITTED_EXTENSIONS) {
+        omittedExtensions[extension] = true;
+      } else {
+        addAttachmentReason_(collection.reasons, 'extensions_limit');
+      }
+    }
+    nameFlags_(name).forEach(function(flag) {
+      omittedFlags[flag] = true;
+    });
+    if ((name.replace(/[.\s]+$/, '').match(/\./g) || []).length >= 2) {
+      omittedFlags.MULTIPLE_DOTS = true;
+    }
+  });
+  items.forEach(function(item) {
+    if (item.name_clip || item.content_type_clipped) {
+      addAttachmentReason_(collection.reasons, 'field_limit');
+    }
+    if (item.unavailable_fields.length) {
+      addAttachmentReason_(collection.reasons, 'field_unavailable');
+    }
+  });
+  collection.omitted_extensions = Object.keys(omittedExtensions);
+  collection.omitted_name_flags = Object.keys(omittedFlags);
+  if (!attachments.length) {
+    collection.state = 'NONE';
+  } else {
+    collection.state = collection.reasons.length ? 'TRUNCATED' : 'COLLECTED';
+  }
+  return {collection: collection, items: items};
+}
+
+function countInlineImages_(message) {
+  try {
+    return Math.min(
+      message.getAttachments({includeInlineImages: true, includeAttachments: false}).length,
+      MAX_ATTACHMENT_COUNT_VALUE
+    );
+  } catch (error) {
+    return null;
+  }
+}
+
+function describeAttachment_(attachment) {
+  var item = {filename: '', content_type: '', size_bytes: null, unavailable_fields: []};
+  var name = readAttachmentField_(function() { return attachment.getName(); });
+  var type = readAttachmentField_(function() { return attachment.getContentType(); });
+  var size = readAttachmentField_(function() { return attachment.getSize(); });
+  if (name === null) {
+    item.unavailable_fields.push('filename');
+  } else {
+    var clipped = clipAttachmentName_(String(name));
+    item.filename = clipped.filename;
+    if (clipped.nameClip) {
+      item.name_clip = clipped.nameClip;
+    }
+  }
+  if (type === null) {
+    item.unavailable_fields.push('content_type');
+  } else {
+    var typePoints = Array.from(String(type));
+    item.content_type = typePoints.slice(0, MAX_ATTACHMENT_TYPE_CODE_POINTS).join('');
+    if (typePoints.length > MAX_ATTACHMENT_TYPE_CODE_POINTS) {
+      item.content_type_clipped = true;
+    }
+  }
+  if (typeof size === 'number' && isFinite(size) && size >= 0 && Math.floor(size) === size) {
+    item.size_bytes = size;
+  } else {
+    item.unavailable_fields.push('size_bytes');
+  }
+  return item;
+}
+
+function readAttachmentField_(read) {
+  try {
+    var value = read();
+    return value === null || value === undefined ? null : value;
+  } catch (error) {
+    return null;
+  }
+}
+
+// Long names keep their start and end, where decoy and real extensions sit. The removed middle is
+// summarised so dots, padding and hidden characters in it still reach the backend; name_clip.at marks
+// where the two kept parts meet, and they must not be read as adjacent in the original name.
+function clipAttachmentName_(name) {
+  var points = Array.from(name);
+  if (points.length <= MAX_ATTACHMENT_NAME_CODE_POINTS) {
+    return {filename: name, nameClip: null};
+  }
+  var tail = MAX_ATTACHMENT_NAME_CODE_POINTS - ATTACHMENT_NAME_HEAD_CODE_POINTS;
+  var removed = points.slice(ATTACHMENT_NAME_HEAD_CODE_POINTS, points.length - tail).join('');
+  return {
+    filename: points.slice(0, ATTACHMENT_NAME_HEAD_CODE_POINTS).concat(points.slice(points.length - tail)).join(''),
+    nameClip: {
+      at: ATTACHMENT_NAME_HEAD_CODE_POINTS,
+      original_length: Math.min(points.length, MAX_ATTACHMENT_COUNT_VALUE),
+      removed_dot_count: Math.min((removed.match(/\./g) || []).length, MAX_ATTACHMENT_COUNT_VALUE),
+      removed_whitespace_only: /^\s+$/.test(removed),
+      removed_flags: nameFlags_(removed)
+    }
+  };
+}
+
+function buildNameFlagPatterns_(rangesByFlag) {
+  var escape = function(codePoint) {
+    return String.fromCharCode(92) + 'u{' + codePoint.toString(16) + '}';
+  };
+  var patterns = {};
+  Object.keys(rangesByFlag).forEach(function(flag) {
+    var body = rangesByFlag[flag].map(function(range) {
+      return escape(range[0]) + '-' + escape(range[1]);
+    }).join('');
+    patterns[flag] = new RegExp('[' + body + ']', 'u');
+  });
+  return patterns;
+}
+
+function nameFlags_(value) {
+  return Object.keys(NAME_FLAG_PATTERNS).filter(function(flag) {
+    return NAME_FLAG_PATTERNS[flag].test(value);
+  });
+}
+
+function finalExtension_(name) {
+  var trimmed = name.replace(/[.\s]+$/, '');
+  var dot = trimmed.lastIndexOf('.');
+  if (dot < 0) {
+    return '';
+  }
+  return Array.from(trimmed.substring(dot + 1).toLowerCase()).slice(0, MAX_EXTENSION_CODE_POINTS).join('');
+}
+
+function addAttachmentReason_(reasons, reason) {
+  if (reasons.indexOf(reason) < 0) {
+    reasons.push(reason);
   }
 }
 
