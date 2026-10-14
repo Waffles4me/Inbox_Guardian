@@ -11,7 +11,7 @@ The Apps Script source renders real backend assessments as a modular dashboard u
 ## Current Local State
 
 - Apps Script source lives in `addon/`.
-- Local `.clasp.json` exists and points to script ID `1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGbVDUu-ro7MmW3rFfxs`.
+- Local `.clasp.json` exists and points to script ID.
 - `.clasp.json` is ignored and must not be committed.
 - `addon/appsscript.json` declares a Gmail contextual trigger and minimal current-message/external-request scopes.
 - `addon/Code.js` reads the opened message subject/sender/body using the current-message access token, then calls the backend with a token stored in Script Properties.

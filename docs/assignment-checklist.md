@@ -1,8 +1,8 @@
-# Assignment Checklist
+# requirements checklist
 
-Source reviewed: `UPWIND_HOME_ASSIGNMENT.md` (kept local, never committed).
+Source reviewed: the private requirements brief (kept local, never committed).
 
-This checklist maps the assignment requirements to evidence in this repository. A checked box means the evidence exists and was verified as described; it is not a claim about how a reviewer will judge it. Status as of 2026-10-13.
+This checklist maps the core requirements to evidence in this repository. A checked box means the evidence exists and was verified as described; it is not a claim about how a reviewer will judge it. Status as of 2026-10-13.
 
 ## Objective
 
@@ -68,4 +68,4 @@ A 3 to 5 minute demo script is in `README.md`. It has not been rehearsed yet.
 
 ## Current Status
 
-Implementation, automated tests and manual Gmail verification exist for the three implemented detector families and the result dashboard. Remaining before submission: review and commit the documentation, add a sanitized screenshot, run the publication review, push the repository, and rehearse the demonstration.
+Implementation and automated tests exist for four detector families; manual Gmail verification exists for the first three detector families and the result dashboard. Attachment metadata still needs real Gmail verification. Remaining before submission: add a sanitized screenshot, run the publication review, push the repository, and rehearse the demonstration.

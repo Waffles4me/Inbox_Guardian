@@ -60,6 +60,8 @@ The request stays at `schema_version` `1.0`. `email.attachment_collection` is op
 
 The attachment detector remains planned and `NOT_RUN`; the "Not checked: attachments, ..." line is still returned in every state. Collection state never changes a score, verdict, finding or coverage reason, and an empty attachment list is never treated as evidence that a message is harmless.
 
+> **Superseded by WBS 2.5 Stage 2 (branch `wbs-2.5-stage2`):** the table and paragraph above describe Stage 1. Stage 2 runs the attachment detector on this collection state. `COLLECTED` and `TRUNCATED` lines now say that only attachment names were checked and attachment content was not inspected; a V1 client's missing attachment information is named in the "Not checked" line instead of a separate line; other states keep their Stage 1 wording. Names with listed extensions can now change the score. See section 8 of `docs/detection-contract.md`.
+
 ## 6. Verification (2026-10-14, branch `wbs-2.5-stage1`, automated only)
 
 Everything below was checked by automated tests and scripts on the branch. **Stage 1 has not been run in the real InboxGuardian add-on**: the source is not synchronized to the Apps Script project, and no Gmail check of the integrated add-on has been made.

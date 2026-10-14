@@ -79,12 +79,17 @@ var SEVERITY_LABELS = {
   high: 'High severity'
 };
 var RESULT_DISPLAY_ERROR = 'The analysis finished but its result could not be displayed. No verdict is shown.';
-var IMPLEMENTED_CHECKS =['Sender identity', 'Link (URL) deception', 'Credential-request wording'];
+var IMPLEMENTED_CHECKS = [
+  'Sender identity',
+  'Link (URL) deception',
+  'Credential-request wording',
+  'Attachment metadata assessed (names only; attachment content not inspected)'
+];
 
 // How backend limitation lines are grouped for display. Grouping never removes a line.
 var NOT_CHECKED_RE = /^\s*not checked:\s*/i;
 var SCORE_PLACEHOLDER_RE = /required-schema placeholder/i;
-var COVERAGE_NOTE_RE = /not assessed|not analy[sz]ed|could not (?:be |fully )?(?:evaluat|assess)|did not run|must not be treated as clean/i;
+var COVERAGE_NOTE_RE = /not assessed|not inspected|not analy[sz]ed|could not (?:be |fully )?(?:evaluat|assess)|did not run|must not be treated as clean/i;
 var SPECIFIC_LIMITATION_RE = /malformed|unsupported|truncated|was capped|parser recorded|lacked enough|no supported url evidence|inconsistent/i;
 
 function buildHomepage() {

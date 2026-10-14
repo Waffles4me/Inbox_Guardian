@@ -109,7 +109,9 @@ def test_empty_input_is_not_falsely_reassuring() -> None:
 
     assert statuses["sender_identity"].status == DetectorStatus.INCONCLUSIVE
     assert statuses["credential_context"].status == DetectorStatus.INCONCLUSIVE
-    assert statuses["attachment_metadata"].status == DetectorStatus.NOT_RUN
+    # No attachment information is not evidence of no attachments.
+    assert statuses["attachment_metadata"].status == DetectorStatus.INCONCLUSIVE
+    assert statuses["financial_fraud"].status == DetectorStatus.NOT_RUN
     assert "No security check was performed" in " ".join(result.limitations)
 
 

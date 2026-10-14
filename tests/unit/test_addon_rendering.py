@@ -173,7 +173,7 @@ def synthetic_result(**overrides) -> dict:
         "findings": [],
         "limitations": [],
         "recommended_action": "Treat this message with caution: verify it through a trusted channel.",
-        "detector_version": "engine-0.1.0+scoring-0.1.0",
+        "detector_version": "engine-0.2.0+scoring-0.2.0",
     }
     result.update(overrides)
     return result

@@ -131,7 +131,7 @@ In the Apps Script editor for the existing project:
 Existing project:
 
 ```text
-https://script.google.com/home/projects/1yLQiiIje9whhVcqtIzN77FEQgguyFBasuHoFiGbVDUu-ro7MmW3rFfxs/edit
+the existing Apps Script project
 ```
 
 ## Open the Existing Gmail Add-on

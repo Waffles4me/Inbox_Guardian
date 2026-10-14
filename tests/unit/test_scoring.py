@@ -69,7 +69,8 @@ def engine_result(
         by_id.get("sender_identity", detector("sender_identity")),
         by_id.get("url_deception", detector("url_deception")),
         by_id.get("credential_context", detector("credential_context")),
-        planned("attachment_metadata"),
+        # A request without attachment collection leaves the attachment check inconclusive.
+        by_id.get("attachment_metadata", detector("attachment_metadata", status=DetectorStatus.INCONCLUSIVE)),
         planned("financial_fraud"),
         planned("nlp_phishing"),
     ]
@@ -188,7 +189,7 @@ def test_maximum_current_total_is_eighty_five() -> None:
         ),
     )
 
-    assert [family.capped_points for family in result.family_scores] == [20, 40, 25]
+    assert [family.capped_points for family in result.family_scores] == [20, 40, 25, 0]
     assert result.risk_score == 85
 
 
@@ -477,7 +478,8 @@ def test_unimplemented_families_are_limitations_not_clean_evidence() -> None:
     result = score_for()
 
     assert result.risk_score == 0
-    assert any("attachment_metadata" in limitation for limitation in result.limitations)
+    assert any("financial_fraud" in limitation for limitation in result.limitations)
+    assert not any("attachment_metadata is planned" in limitation for limitation in result.limitations)
     assert result.verdict == "NO_SIGNIFICANT_SIGNALS"
 
 

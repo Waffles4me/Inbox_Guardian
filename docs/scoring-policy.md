@@ -2,7 +2,7 @@
 
 > **Status:** APPROVED, IMPLEMENTED AND WIRED TO BACKEND `/analyze`
 > **Date:** 2026-10-13
-> **Scope:** Initial scoring specification for the three implemented internal detector families only: sender identity, URL deception and credential context.
+> **Scope:** Scoring for the four implemented internal detector families: sender identity, URL deception, credential context and, since WBS 2.5 Stage 2 (`scoring-0.2.0`, branch `wbs-2.5-stage2`, not yet committed or deployed), attachment metadata.
 
 This document records the approved deterministic Method C v1 scoring policy implemented in `backend/app/scoring.py`, tested in `tests/unit/test_scoring.py`, and mapped into the backend `/analyze` response by `backend/app/main.py`. It does not change the public response schema, detector code or authentication behavior. Gmail presentation is implemented separately in `addon/Code.js`.
 
@@ -28,8 +28,9 @@ Risk index is a heuristic index, not a probability.
 | `sender_identity` | 20 | Sender anomalies are useful supporting evidence but can be legitimate due to delegation, support desks and mailing platforms. |
 | `url_deception` | 40 | URL deception is the strongest implemented structural signal because it can directly identify misleading link construction without fetching the link. |
 | `credential_context` | 25 | Credential-language evidence is important but has common legitimate counterexamples, so it should not dominate without link/sender context. |
+| `attachment_metadata` | 35 | A runnable or disguised attachment name is strong structural evidence, but a name never proves file content, so it stays below the URL cap. |
 
-Total possible score from current implemented families is capped at 85 before any future families. Initial correlation bonus is explicitly `0`.
+The first three family caps are unchanged from V1 and total 85. With the attachment family the raw total is 120, and the score is clamped to 100. The correlation bonus is explicitly `0`.
 
 ## Approved Verdict Thresholds
 
@@ -56,6 +57,15 @@ Total possible score from current implemented families is capped at 85 before an
 | `credential_urgent_account_threat` | `credential_context` | Credential/account verification language is paired with urgent account-loss pressure. | medium | subject/body/link sources; `credential.urgent_account_threat` | Legitimate service outage or account-security alerts with deadlines. | Correlated with credential request text; should be additive only within family cap. | Weak: rule-level evidence ID. | 10 |
 | `credential_request_with_link` | `credential_context` | Credential request language appears alongside at least one parsed link. | low | subject/body/link sources; `credential.request_with_link` | Legitimate login, password reset and MFA workflows. | Directly overlaps with `credential_secret_collection_request` plus link evidence and may also overlap with URL findings. | Weak: rule-level evidence ID; should not be treated as independent evidence from URL family. | 0 |
 | `credential_security_bypass_instruction` | `credential_context` | Message asks recipient to ignore/bypass/disable security, MFA, verification or approval. | medium | subject/body sources; `credential.security_bypass_instruction` | Rare legitimate troubleshooting instructions, internal support guidance. | Can overlap with credential request language but is a distinct text pattern. | Weak-to-moderate: rule-level evidence ID, but distinct text pattern. | 20 |
+| `attachment_executable_extension` (ATT-01) | `attachment_metadata` | Final extension is a Windows program or installer. | medium | `attachments`; `attachment:{position}` | Software distribution inside organisations. | Overlaps with ATT-03 and ATT-04 on the same file. | Good: one evidence ID per distinct attachment. | 25 |
+| `attachment_script_extension` (ATT-02) | `attachment_metadata` | Final extension is a script, command file or `.lnk` shortcut. | medium | as above | Administrators and developers exchanging scripts. | Overlaps with ATT-03 and ATT-04. | Good. | 20 |
+| `attachment_deceptive_double_extension` (ATT-03) | `attachment_metadata` | A document, image, media or archive extension directly precedes an ATT-01/ATT-02 extension. | medium | as above | Rare. | Always accompanies ATT-01 or ATT-02 on the same file. | Good. | 30 |
+| `attachment_bidi_control_name` (ATT-04) | `attachment_metadata` | Name contains a bidirectional embedding, override or isolate control (U+202A-202E, U+2066-2069). | medium | as above | Rare; ordinary Hebrew and Arabic names do not need these controls. | Overlaps with any extension rule. | Good. | 20 |
+| `attachment_invisible_character_name` (ATT-05) | `attachment_metadata` | Name contains U+200B, U+2060 or U+FEFF, or a zero-width joiner/non-joiner next to an ASCII character. | low | as above | Copy-paste artefacts. | Overlaps with any extension rule. | Good. | 10 |
+| `attachment_active_content_type` (ATT-06) | `attachment_metadata` | Final extension is HTML, MHTML, SVG or OneNote. | low | as above | Reports, logos, shared notebooks. | Exclusive with other extension rules. | Good. | 10 |
+| `attachment_macro_enabled_office` (ATT-07) | `attachment_metadata` | Final extension is a macro-enabled Office format. | low | as above | Business spreadsheets and templates. | Exclusive with other extension rules. | Good. | 10 |
+
+ATT-08 (metadata unavailable, malformed or clipped so that a rule cannot be evaluated) adds no points; it is reported as a detector limitation. The exact extension lists, and the reasons for what is left out, are in `docs/detection-contract.md`.
 
 ## Within-Family Reconciliation
 
@@ -65,7 +75,8 @@ For each family:
 2. Deduplicate exact repeated `evidence_id` values.
 3. For URL findings about the same actual destination host and same visible claim, keep the highest contribution if two rules ever overlap.
 4. For credential findings, treat `credential_request_with_link` as contextual support only. It has approved contribution `0`, should not raise the score, and must not establish independent corroboration with URL evidence.
-5. Sum remaining contributions and apply the family cap.
+5. For attachment findings, every rule reads the same filename, so all findings for one attachment share a deduplication key (`attachment.name:{evidence_id}`) and only the strongest is credited; on a tie the first one emitted is kept. Distinct attachments keep separate keys and are limited by the 35-point cap, allocated strongest first and then in finding order. Identical metadata entries are checked once by the detector. Every finding from the omitted-attachment summary shares one evidence ID and is credited at most once.
+6. Sum remaining contributions and apply the family cap.
 
 The scorer should expose a compact explanation of raw finding points, removed duplicates, cap reductions and final credited family contribution.
 
@@ -78,6 +89,7 @@ Cross-family deduplication should avoid counting the same observation as indepen
 - Sender identity evidence is independent from URL and credential text when based on `from`/`reply_to` fields.
 - URL evidence is independent from credential text when the URL finding identifies structural deception and the credential finding identifies separate request language.
 - Multiple credential findings from the same sentence or request should remain within the credential cap and should not create separate family independence.
+- Attachment evidence comes from attachment names, which no other family reads, so it is independent of sender, URL and credential evidence. Only ATT-01 to ATT-04 count as independent evidence. The weak rules ATT-05 to ATT-07 are common in legitimate mail and do not establish independence. Several attachment findings are still one family.
 
 Initial implementation computes no correlation bonus. It only needs enough metadata to explain whether `HIGH_RISK` eligibility is satisfied by at least two distinct triggered families with nonzero credited contributions.
 
@@ -90,7 +102,9 @@ Use `INCOMPLETE` when the available evidence is insufficient for a meaningful as
 - Any implemented detector returns `NOT_RUN` because of an unexpected internal failure.
 - Essential current-message fields are absent or clearly truncated in a way that prevents meaningful interpretation, once truncation metadata exists.
 
-Do **not** mark `INCOMPLETE` merely because attachment, financial and NLP families are planned but unimplemented. They should be disclosed as unavailable limitations.
+Do **not** mark `INCOMPLETE` merely because financial and NLP families are planned but unimplemented. They should be disclosed as unavailable limitations.
+
+The attachment check is `INCONCLUSIVE`, never `NOT_RUN`, when attachment information is missing (a V1 client), unavailable, inconsistent, or truncated without a reliable finding. `INCONCLUSIVE` does not affect coverage, and the attachment detector reports no coverage gaps, so these states never turn a verdict into `INCOMPLETE`; they are disclosed as limitations. An internal failure of the attachment detector is `NOT_RUN` and makes the assessment `INCOMPLETE`, as for any implemented detector.
 
 ### Implemented coverage rule (2026-10-13)
 
@@ -103,6 +117,12 @@ The conditions above were written as proposals. The scorer currently returns `IN
 - A detector reports `NOT_TRIGGERED` while carrying findings.
 
 A score of 20 or more keeps its `SUSPICIOUS` or `HIGH_RISK` verdict, with the gap listed among the limitations. Findings are returned in every case. Truncation metadata does not exist, so the truncation condition above is not implemented. No weight, cap, bonus or numerical threshold was changed by these rules.
+
+### Known limitation: weak findings below the threshold (WBS 2.5 Stage 2)
+
+A message whose only finding is a weak attachment rule (ATT-05, ATT-06 or ATT-07, 10 points each) scores below 20 and receives `NO_SIGNIFICANT_SIGNALS`, while the finding is still listed with `+10` and the recommended action still advises caution with attachments. Two or more such files reach `SUSPICIOUS`. This is the existing V1 threshold policy, kept unchanged for this milestone and pinned by `test_single_weak_finding_stays_below_the_suspicious_threshold`. Weak weights were deliberately not raised to cross the threshold. Whether a scored finding should change the verdict label is an open policy decision (Method C v1.1 explored it and is not adopted).
+
+Likewise, when attachment information is missing or unavailable, a message can receive `NO_SIGNIFICANT_SIGNALS` although its attachments were not assessed; the limitations say so.
 
 ## Sufficient Coverage for NO_SIGNIFICANT_SIGNALS
 
@@ -151,7 +171,8 @@ Examples that should **not** be enough for high risk by themselves:
 | Overlapping credential/link findings | Credential request with benign-looking link, no URL deception. | Credential request + credential link context; URL may `NOT_TRIGGERED`. | `SUSPICIOUS`; link-context does not create separate family independence |
 | Missing sender/body | Empty From and empty body. | Sender `INCONCLUSIVE`; credential `INCONCLUSIVE`; URL `NOT_TRIGGERED` or no evidence; planned `NOT_RUN`. | `INCOMPLETE` |
 | Malformed or truncated input | Malformed URL or parser issues. | Affected detector `INCONCLUSIVE`; parse issues preserved. | `INCOMPLETE` if meaningful checks cannot run, otherwise `SUSPICIOUS`/`NO_SIGNIFICANT_SIGNALS` with limitations |
-| Unimplemented detector families | No attachment/financial/NLP implementation. | Planned families `NOT_RUN` with explicit limitations. | Does not force `INCOMPLETE` by itself |
+| Unimplemented detector families | No financial/NLP implementation. | Planned families `NOT_RUN` with explicit limitations. | Does not force `INCOMPLETE` by itself |
+| Attachment metadata | Runnable, disguised or active-content attachment names; missing or truncated collection. | Attachment `TRIGGERED`, `NOT_TRIGGERED` or `INCONCLUSIVE`. | See `docs/evaluation-results-attachments.md` |
 
 This matrix is the design-time intent. Measured per-case behaviour on a separate 30-case labeled synthetic set is in `docs/evaluation-baseline.md`; that set is small and author-written and is not a measure of detection accuracy.
 
@@ -164,7 +185,7 @@ This matrix is the design-time intent. Measured per-case behaviour on a separate
 - `ScoredFinding`: original immutable detector finding plus approved weight, effective contribution, counted flag and accounting note.
 - `FamilyScore`: raw points, capped points, cap and per-family limitations.
 
-The scorer consumes `EngineResult`, not raw `EmailPayload`, and the backend serializer preserves public `AnalyzeResponse` schema version `1.0`. The scorer does not mutate engine input objects and does not fetch URLs, execute HTML, retrieve attachments or use external services.
+The scorer consumes `EngineResult`, not raw `EmailPayload`, and the backend serializer preserves public `AnalyzeResponse` schema version `1.0`. The scorer does not mutate engine input objects and does not fetch URLs, execute HTML, retrieve or open attachments or use external services.
 
 Backend `/analyze` mapping:
 

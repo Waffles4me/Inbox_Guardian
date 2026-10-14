@@ -67,7 +67,7 @@ def test_analyze_accepts_valid_authentication_and_returns_real_assessment(monkey
     assert body["schema_version"] == "1.0"
     assert body["score_type"] == "heuristic_risk_index_not_probability"
     assert body["verdict"] == "NO_SIGNIFICANT_SIGNALS"
-    assert body["detector_version"] == "engine-0.1.0+scoring-0.1.0"
+    assert body["detector_version"] == "engine-0.2.0+scoring-0.2.0"
     assert "DEMO / NOT ANALYZED" not in response_text(body)
 
 
@@ -687,7 +687,7 @@ def test_planned_detectors_are_limitations_not_completed_checks(monkeypatch) -> 
     response = post_analyze(monkeypatch)
 
     limitations = " ".join(response.json()["limitations"])
-    assert "attachment_metadata is planned but not implemented" in limitations
+    assert "attachment_metadata is planned" not in limitations
     assert "financial_fraud is planned but not implemented" in limitations
     assert "nlp_phishing is planned but not implemented" in limitations
 

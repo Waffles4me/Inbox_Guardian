@@ -2,7 +2,7 @@
 
 InboxGuardian is a Gmail Add-on that analyzes the email you have open, on request, and shows a heuristic risk index, a verdict, the evidence behind it, and what it could not check. A separate Python backend does the analysis; the add-on collects the message and presents the result.
 
-It was built as a home assignment for a security analyst role. It is a working prototype for a single test account, not a production mail-security product, and it is not published to the Google Workspace Marketplace.
+It was built as a time-boxed security-engineering prototype. It is a working prototype for a single test account, not a production mail-security product, and it is not published to the Google Workspace Marketplace.
 
 ## Why it is built this way
 
@@ -29,7 +29,7 @@ ngrok HTTPS tunnel  ->  FastAPI backend on 127.0.0.1:8000
                           |
                           +-- request validation and size limits
                           +-- parser: mailboxes, inert HTML text, anchors, URLs
-                          +-- detectors: sender identity, URL deception, credential context
+                          +-- detectors: sender identity, URL deception, credential context, attachment metadata
                           +-- Method C v1 scorer: weights, family caps, coverage, verdict
                           v
                         JSON result (schema 1.0)
@@ -57,22 +57,25 @@ No screenshot is committed yet. To add one, analyze a **synthetic** test message
 
 ## What it detects
 
-Three detector families are implemented. Each emits findings with a stable ID; the scorer assigns the weights.
+Four detector families are implemented. Each emits findings with a stable ID; the scorer assigns the weights.
 
 | Family | What it looks at | Example findings |
 |---|---|---|
 | Sender identity | From and Reply-To | Reply-To on an unrelated domain; a domain named in the display name that differs from the sending domain |
 | URL deception | Links in the HTML and plain-text bodies | Link text shows one host but the link goes to another; the shown host used as a prefix of a different domain; IP-address hosts; hostname-like text before `@` in a URL |
 | Credential context | Subject and body wording (English) | Requests for passwords or one-time codes; account verification with a link; account-loss pressure; instructions to bypass security controls |
+| Attachment metadata | Attachment names only (Gmail's list, collected on request) | Program or script extensions; a document-like extension in front of one (`.pdf.exe`); hidden text-direction or zero-width characters in a name; HTML, SVG, OneNote and macro-enabled Office files as weak signals |
 
-Three more families are approved but **not implemented**: suspicious attachment metadata, payment redirection / financial fraud, and an NLP phishing classifier. Every result states that these were not checked.
+The attachment check reads names, never content: files are not downloaded, opened, scanned or hashed, and a name does not prove what a file contains. MIME types and sizes are not scored. When attachment information is missing or incomplete the check is inconclusive and says so. The attachment family is new in WBS 2.5 Stage 2 and has not yet been verified in Gmail.
+
+Two more families are approved but **not implemented**: payment redirection / financial fraud, and an NLP phishing classifier. Every result states that these were not checked.
 
 ## Scoring: Method C v1
 
 The risk index is a number from 0 to 100. **It is a heuristic index, not a probability of phishing**, and it has not been calibrated.
 
 - Each finding has a fixed weight, from 0 (context only) to 35.
-- Each family is capped: sender identity 20, URL deception 40, credential context 25. The current maximum is therefore 85.
+- Each family is capped: sender identity 20, URL deception 40, credential context 25, attachment metadata 35. The total is clamped to 100.
 - Repeated or overlapping evidence is counted once. There is no correlation bonus.
 - `HIGH_RISK` needs a score of at least 60 **and** evidence from at least two families, so one family cannot reach it alone.
 
@@ -214,7 +217,7 @@ Not checked by hand: Gmail's dark theme, the mobile app, screen readers, and the
 
 - HTML is parsed as inert text with Python's standard library. Scripts and styles are ignored; nothing is rendered or executed.
 - Links are parsed, never fetched, expanded or resolved. There are no reputation lookups and no outbound requests from the backend.
-- Attachments are not collected or opened.
+- Only attachment names, declared types and sizes are collected, and only names are checked. Attachment content is never read, downloaded or opened.
 - Inputs are bounded: 50,000 characters per body, 50 URLs per source, 2,048 characters per URL.
 - The add-on escapes every backend and message string before display and creates no clickable links or remote images.
 
@@ -247,7 +250,8 @@ Decisions are recorded in [docs/security-decisions.md](docs/security-decisions.m
 - **No registered-domain logic.** Two-level suffixes such as `.co.il` defeat sender comparison, and sibling subdomains are treated as different hosts.
 - **Brand impersonation without a domain** in the display name is not detected, and lookalike domains are not recognized.
 - **Forwarded messages are not assessed.** They return `INCOMPLETE` unless other evidence is present. HTML is flattened, so a request quoted inside an HTML blockquote can still be attributed to the sender.
-- **English only.** No image, QR-code or attachment analysis.
+- **English only.** No image or QR-code analysis, and no attachment content analysis.
+- **A single weak attachment finding does not change the verdict.** An HTML, SVG, OneNote or macro-enabled file alone scores 10, below the `SUSPICIOUS` threshold, so the verdict stays `NO_SIGNIFICANT_SIGNALS` while the finding is listed.
 
 ## Open decision
 
@@ -266,13 +270,12 @@ Before starting: backend running on the latest code, tunnel up, Script Propertie
 
 ## Roadmap
 
-In intended order, none of it started:
+In intended order. Attachment metadata checks (WBS 2.5) are implemented on a branch and await Gmail verification; nothing below is started:
 
-1. Attachment metadata checks (file names, extensions, declared types), without opening files.
-2. Payment redirection and financial-fraud wording, correlated with sender and link evidence.
-3. An NLP phishing classifier, evaluated separately before it influences any score.
-4. Method C v2 scoring, to be reviewed separately; candidates include very strong single-family evidence and tracking-redirect weighting.
-5. Optional URL-reputation enrichment such as VirusTotal. This would send URLs from a user's email to a third party, so it needs explicit privacy approval and a review of the provider's terms first, and would have to be opt-in.
+1. Payment redirection and financial-fraud wording, correlated with sender and link evidence.
+2. An NLP phishing classifier, evaluated separately before it influences any score.
+3. Method C v2 scoring, to be reviewed separately; candidates include very strong single-family evidence and tracking-redirect weighting.
+4. Optional URL-reputation enrichment such as VirusTotal. This would send URLs from a user's email to a third party, so it needs explicit privacy approval and a review of the provider's terms first, and would have to be opt-in.
 
 ## Further reading
 

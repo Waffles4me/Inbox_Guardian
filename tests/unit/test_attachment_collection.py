@@ -27,7 +27,7 @@ BASE_EMAIL = {
     "text_body": "Please find the agenda attached.",
 }
 PRIVATE_NAME = "ig-private-salary-review.pdf"
-NOT_ASSESSED = "they were not assessed because attachment checks are not implemented yet."
+NAMES_ONLY = "Only attachment names were checked; attachment content was not inspected."
 
 
 def item(name: str = "ig-agenda.pdf", **overrides) -> dict:
@@ -252,8 +252,9 @@ def test_out_of_bound_attachment_fields_are_rejected(overrides) -> None:
     ("case", "expected"),
     [
         ("none", "Attachments: Gmail listed none. Inline images and linked Drive files are not counted."),
-        ("collected", f"Attachments: Gmail listed 2; {NOT_ASSESSED}"),
-        ("truncated-count", f"Attachments: Gmail listed 3 and details for 1 were received; {NOT_ASSESSED}"),
+        ("collected", f"Attachments: Gmail listed 2. {NAMES_ONLY}"),
+        ("truncated-count", f"Attachments: Gmail listed 3 and details for 1 were received; the others were not "
+                            f"assessed individually. {NAMES_ONLY}"),
         ("unavailable", "Attachments: attachment information could not be collected from Gmail, so attachments were "
                         "not assessed."),
     ],
@@ -263,7 +264,8 @@ def test_collection_state_is_reported_after_the_not_checked_line(monkeypatch, ca
     limitations = analyze(monkeypatch, items, declared)["limitations"]
 
     not_checked = next(index for index, line in enumerate(limitations) if line.startswith("Not checked:"))
-    assert "attachments" in limitations[not_checked]
+    # Attachment information was sent, so attachments are no longer listed as not checked.
+    assert "attachments" not in limitations[not_checked]
     assert limitations[not_checked + 1] == expected
 
 
@@ -271,14 +273,15 @@ def test_inconsistent_collection_is_reported_without_claiming_attachments_were_c
     limitations = analyze(monkeypatch, [item()], collection("NONE"))["limitations"]
 
     assert "Attachments: the attachment information received was inconsistent, so attachments were not assessed." in limitations
-    assert any(line.startswith("Not checked: attachments") for line in limitations)
+    assert not any("names were checked" in line for line in limitations)
 
 
 def test_legacy_request_gets_no_attachment_status_line(monkeypatch) -> None:
     limitations = analyze(monkeypatch)["limitations"]
 
     assert not any(line.startswith("Attachments:") for line in limitations)
-    assert any(line.startswith("Not checked: attachments") for line in limitations)
+    not_checked = next(line for line in limitations if line.startswith("Not checked: attachments"))
+    assert "This request included no attachment information" in not_checked
 
 
 def test_attachment_names_and_types_never_reach_the_response(monkeypatch) -> None:
@@ -299,19 +302,21 @@ def legacy_and_variants(case: dict) -> list[dict]:
     email.pop("attachment_collection", None)
     variants = [dict(email)]
     for items, declared in CONSISTENT.values():
+        # Only names the attachment rules never score, so any change would come from the collection state.
+        declared = {**declared, "omitted_extensions": [ext for ext in declared["omitted_extensions"] if ext != "html"]}
         variants.append({**email, "attachment_metadata": items, "attachment_collection": declared})
     variants.append({**email, "attachment_metadata": [item()], "attachment_collection": collection("NONE")})
     return variants
 
 
 @pytest.mark.parametrize("case", CASES, ids=[case["id"] for case in CASES])
-def test_collection_state_never_changes_score_verdict_or_findings(case: dict) -> None:
+def test_collection_state_with_unscored_names_never_changes_score_verdict_or_findings(case: dict) -> None:
     outcomes = []
     for email in legacy_and_variants(case):
         engine_result = analyze_with_detectors(EmailPayload.model_validate(email))
         scoring = score_engine_result(engine_result)
         statuses = {result.detector_id: result.status for result in engine_result.detector_results}
-        assert statuses["attachment_metadata"] == DetectorStatus.NOT_RUN
+        assert statuses["attachment_metadata"] != DetectorStatus.TRIGGERED
         outcomes.append(
             (
                 scoring.risk_score,

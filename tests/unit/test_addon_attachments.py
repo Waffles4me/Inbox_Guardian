@@ -165,7 +165,7 @@ BACKEND_RESULT = {
     "findings": [],
     "limitations": ["Attachments: attachment information could not be collected from Gmail, so attachments were not assessed."],
     "recommended_action": "Continue using normal caution.",
-    "detector_version": "engine-0.1.0+scoring-0.1.0",
+    "detector_version": "engine-0.2.0+scoring-0.2.0",
 }
 
 SCENARIOS = {
@@ -498,11 +498,18 @@ def test_attachment_status_is_shown_under_analysis_coverage(monkeypatch) -> None
                 for name, sections in rendered.items()}
     collected_text = "\n".join(section["text"] for section in rendered["collected"])
 
-    assert "Attachments: Gmail listed 1; they were not assessed" in coverage["collected"]
+    assert (
+        "Attachments: Gmail listed 1. Only attachment names were checked; attachment content was not inspected."
+        in coverage["collected"]
+    )
     assert "Coverage limits for this message" in coverage["collected"]
-    assert "attachments" in coverage["collected"].split("Coverage limits")[0]  # the "Not checked" line still names them
+    checks_and_not_checked = coverage["collected"].split("Coverage limits")[0]
+    assert "Attachment metadata assessed (names only; attachment content not inspected)" in checks_and_not_checked
+    assert "attachments, payment" not in checks_and_not_checked
     assert "ig-private-agenda" not in collected_text
-    assert "Attachments:" not in "\n".join(section["text"] for section in rendered["legacy"])
+    legacy_text = "\n".join(section["text"] for section in rendered["legacy"])
+    assert "Attachments:" not in legacy_text
+    assert "attachments, payment or financial-fraud requests" in legacy_text
     # Collection changes only the limitations: the verdict and score are those of the legacy request.
     assert (results["collected"]["verdict"], results["collected"]["risk_score"]) == (
         results["legacy"]["verdict"], results["legacy"]["risk_score"])

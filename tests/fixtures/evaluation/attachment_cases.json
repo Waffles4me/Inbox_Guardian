@@ -1,0 +1,1907 @@
+{
+  "description": "WBS 2.5 Stage 2 synthetic attachment-metadata cases. Separate from the frozen cases.json. Not a real-world benchmark. All names and addresses are synthetic.",
+  "cases": [
+    {
+      "id": "AP01",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "Program attached as an invoice",
+      "rationale": "ATT-01 executable final extension",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "invoice.exe",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_executable_extension"
+        ],
+        "attachment_points": 25
+      }
+    },
+    {
+      "id": "AP02",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "PowerShell script attached",
+      "rationale": "ATT-02 script extension",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "run.ps1",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_script_extension"
+        ],
+        "attachment_points": 20
+      }
+    },
+    {
+      "id": "AP03",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "PDF-looking program",
+      "rationale": "ATT-03 double extension; ATT-01 suppressed",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "invoice.pdf.exe",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_deceptive_double_extension",
+          "attachment_executable_extension"
+        ],
+        "attachment_points": 30
+      }
+    },
+    {
+      "id": "AP04",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "Word-looking screensaver",
+      "rationale": "ATT-03 double extension",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "report.docx.scr",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_deceptive_double_extension",
+          "attachment_executable_extension"
+        ],
+        "attachment_points": 30
+      }
+    },
+    {
+      "id": "AP05",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "Right-to-left override hides .scr (displays as a PDF)",
+      "rationale": "ATT-04 bidi control and ATT-01; strongest credited",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "scan\u202efdp.scr",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_executable_extension",
+          "attachment_bidi_control_name"
+        ],
+        "attachment_points": 25
+      }
+    },
+    {
+      "id": "AP06",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "Zero-width space in a misleading payroll name",
+      "rationale": "ATT-05 weak rule; known low-score limitation",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "pay\u200broll-update.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_invisible_character_name"
+        ],
+        "attachment_points": 10
+      }
+    },
+    {
+      "id": "AP07",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "HTML 'secure message' attachment",
+      "rationale": "ATT-06 weak rule",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "Secure_Message.html",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_active_content_type"
+        ],
+        "attachment_points": 10
+      }
+    },
+    {
+      "id": "AP08",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "SVG 'voicemail' attachment",
+      "rationale": "ATT-06 weak rule",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "voicemail-0412.svg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_active_content_type"
+        ],
+        "attachment_points": 10
+      }
+    },
+    {
+      "id": "AP09",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "OneNote attachment",
+      "rationale": "ATT-06 weak rule",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "Shared-Document.one",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_active_content_type"
+        ],
+        "attachment_points": 10
+      }
+    },
+    {
+      "id": "AP10",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "Macro-enabled Word invoice",
+      "rationale": "ATT-07 weak rule",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "Invoice_0412.docm",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_macro_enabled_office"
+        ],
+        "attachment_points": 10
+      }
+    },
+    {
+      "id": "AP11",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "Macro-enabled Excel remittance",
+      "rationale": "ATT-07 weak rule",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "Remittance.xlsm",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_macro_enabled_office"
+        ],
+        "attachment_points": 10
+      }
+    },
+    {
+      "id": "AP12",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "Two distinct runnable attachments",
+      "rationale": "Family cap 35",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "invoice.pdf.exe",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "setup.msi",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 2,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_deceptive_double_extension",
+          "attachment_executable_extension",
+          "attachment_executable_extension"
+        ],
+        "attachment_points": 35
+      }
+    },
+    {
+      "id": "AP13",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "Disguised program plus deceptive link",
+      "rationale": "Two independent families: URL 30 + attachment 30",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "<p>Your statement is ready.</p><p><a href=\"https://coastlinebank-statements-view.test/open\">https://online.coastlinebank.test/statements</a></p>",
+        "attachment_metadata": [
+          {
+            "filename": "statement.pdf.exe",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_deceptive_double_extension",
+          "attachment_executable_extension"
+        ],
+        "attachment_points": 30
+      }
+    },
+    {
+      "id": "AP14",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "Disguised screensaver plus display-name domain claim",
+      "rationale": "Sender 20 + attachment 30",
+      "email": {
+        "subject": "Document attached",
+        "from": "accounts.coastlinebank.test <notice@mailer-hub.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "statement.pdf.scr",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_deceptive_double_extension",
+          "attachment_executable_extension"
+        ],
+        "attachment_points": 30
+      }
+    },
+    {
+      "id": "AP15",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "Windows shortcut attached",
+      "rationale": "ATT-02 .lnk launcher",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "Scan_0012.lnk",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_script_extension"
+        ],
+        "attachment_points": 20
+      }
+    },
+    {
+      "id": "AP16",
+      "group": "positive",
+      "label": "SUSPICIOUS",
+      "description": "30 attachments; an omitted one is a program",
+      "rationale": "Omitted-extension summary, credited once",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "page-00.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-01.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-02.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-03.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-04.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-05.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-06.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-07.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-08.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-09.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-10.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-11.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-12.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-13.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-14.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-15.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-16.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-17.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-18.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-19.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-20.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-21.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-22.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-23.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "page-24.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "TRUNCATED",
+          "regular_count": 30,
+          "inline_count": 0,
+          "omitted_count": 5,
+          "omitted_extensions": [
+            "pdf",
+            "exe"
+          ],
+          "omitted_name_flags": [],
+          "reasons": [
+            "count_limit"
+          ]
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_executable_extension"
+        ],
+        "attachment_points": 25
+      }
+    },
+    {
+      "id": "AB01",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Ordinary PDF",
+      "rationale": "No rule",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "report.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB02",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Ordinary DOCX",
+      "rationale": "No rule",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "proposal.docx",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB03",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Plain text",
+      "rationale": "No rule",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "notes.txt",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB04",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "JPG and PNG",
+      "rationale": "No rule",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "photo.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "scan.png",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 2,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB05",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Legitimate HTML test report",
+      "rationale": "ATT-06 weak finding expected (detector FP)",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "test-coverage-report.html",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_active_content_type"
+        ],
+        "attachment_points": 10
+      }
+    },
+    {
+      "id": "AB06",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Legitimate SVG logo",
+      "rationale": "ATT-06 weak finding expected (detector FP)",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "company-logo.svg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_active_content_type"
+        ],
+        "attachment_points": 10
+      }
+    },
+    {
+      "id": "AB07",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Genuine macro-enabled forecast model",
+      "rationale": "ATT-07 weak finding expected (detector FP)",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "Q3-forecast-model.xlsm",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_macro_enabled_office"
+        ],
+        "attachment_points": 10
+      }
+    },
+    {
+      "id": "AB08",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Hebrew filename",
+      "rationale": "Ordinary RTL letters",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "\u05d3\u05d5\u05d7 \u05e8\u05d1\u05e2\u05d5\u05e0\u05d9.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB09",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Hebrew filename with a right-to-left mark",
+      "rationale": "RLM is not a bidi override",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "\u05d7\u05e9\u05d1\u05d5\u05e0\u05d9\u05ea\u200f 2026.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB10",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Archives",
+      "rationale": ".zip and .7z are not scored",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "photos.zip",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "backup.7z",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 2,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB11",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "MIME types unrelated to the extensions",
+      "rationale": "MIME mismatch is not scored",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "budget.xlsx",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "invoice.pdf",
+            "content_type": "application/x-msdownload",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 2,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB12",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Persian filename with a zero-width non-joiner",
+      "rationale": "Joiner between Persian letters",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "\u0641\u0627\u06cc\u0644\u200c\u0647\u0627.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB13",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Exactly 25 ordinary attachments",
+      "rationale": "Maximum transmitted list",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "photo-00.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-01.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-02.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-03.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-04.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-05.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-06.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-07.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-08.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-09.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-10.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-11.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-12.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-13.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-14.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-15.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-16.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-17.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-18.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-19.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-20.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-21.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-22.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-23.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "photo-24.jpg",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 25,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB14",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "No attachments",
+      "rationale": "NONE state",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [],
+        "attachment_collection": {
+          "state": "NONE",
+          "regular_count": 0,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB15",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Unknown extension",
+      "rationale": "Unfamiliar extensions are not scored",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "export.xyz123",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AB16",
+      "group": "benign",
+      "label": "BENIGN",
+      "description": "Internet shortcut",
+      "rationale": ".url is deliberately not scored",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "intranet.url",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AC01",
+      "group": "coverage",
+      "label": "SUSPICIOUS",
+      "description": "V1 client sends a program name with no collection state",
+      "rationale": "UNKNOWN is inconclusive; names without a state are not trusted",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "invoice.exe",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ]
+      },
+      "expected": {
+        "attachment_status": "INCONCLUSIVE",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AC02",
+      "group": "coverage",
+      "label": "BENIGN",
+      "description": "Collection failed",
+      "rationale": "UNAVAILABLE",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_collection": {
+          "state": "UNAVAILABLE",
+          "regular_count": null,
+          "inline_count": null,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": [
+            "collection_error"
+          ]
+        }
+      },
+      "expected": {
+        "attachment_status": "INCONCLUSIVE",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AC03",
+      "group": "coverage",
+      "label": "SUSPICIOUS",
+      "description": "State NONE contradicts a listed program",
+      "rationale": "Inconsistent becomes UNKNOWN",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "invoice.exe",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "NONE",
+          "regular_count": 0,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "INCONCLUSIVE",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AC04",
+      "group": "coverage",
+      "label": "SUSPICIOUS",
+      "description": "Truncated: one program name plus an unreadable name",
+      "rationale": "Reliable finding kept, gap disclosed",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "invoice.exe",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          },
+          {
+            "filename": "",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": [
+              "filename"
+            ]
+          }
+        ],
+        "attachment_collection": {
+          "state": "TRUNCATED",
+          "regular_count": 2,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": [
+            "field_unavailable"
+          ]
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_executable_extension"
+        ],
+        "attachment_points": 25
+      }
+    },
+    {
+      "id": "AC05",
+      "group": "coverage",
+      "label": "BENIGN",
+      "description": "Truncated: only an unreadable name",
+      "rationale": "No reliable finding",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": [
+              "filename"
+            ]
+          }
+        ],
+        "attachment_collection": {
+          "state": "TRUNCATED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": [
+            "field_unavailable"
+          ]
+        }
+      },
+      "expected": {
+        "attachment_status": "INCONCLUSIVE",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AC06",
+      "group": "coverage",
+      "label": "SUSPICIOUS",
+      "description": "Name clipped between '.pdf' and '.exe'",
+      "rationale": "Double extension never inferred across the clip; .exe still counts",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "statement.pdf.exe",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": [],
+            "name_clip": {
+              "at": 13,
+              "original_length": 400,
+              "removed_dot_count": 0
+            }
+          }
+        ],
+        "attachment_collection": {
+          "state": "TRUNCATED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": [
+            "field_limit"
+          ]
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_executable_extension"
+        ],
+        "attachment_points": 25
+      }
+    },
+    {
+      "id": "AC07",
+      "group": "coverage",
+      "label": "SUSPICIOUS",
+      "description": "Clipped name with the double extension inside the kept tail",
+      "rationale": "Final and decoy extensions both verified inside the tail",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA-quarterly-report.pdf.exe",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": [],
+            "name_clip": {
+              "at": 64,
+              "original_length": 400
+            }
+          }
+        ],
+        "attachment_collection": {
+          "state": "TRUNCATED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": [
+            "field_limit"
+          ]
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_deceptive_double_extension",
+          "attachment_executable_extension"
+        ],
+        "attachment_points": 30
+      }
+    },
+    {
+      "id": "AC08",
+      "group": "coverage",
+      "label": "SUSPICIOUS",
+      "description": "Script name with type and size unavailable",
+      "rationale": "Name still checked",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "update.vbs",
+            "content_type": "",
+            "size_bytes": null,
+            "unavailable_fields": [
+              "content_type",
+              "size_bytes"
+            ]
+          }
+        ],
+        "attachment_collection": {
+          "state": "TRUNCATED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": [
+            "field_unavailable"
+          ]
+        }
+      },
+      "expected": {
+        "attachment_status": "TRIGGERED",
+        "attachment_findings": [
+          "attachment_script_extension"
+        ],
+        "attachment_points": 20
+      }
+    },
+    {
+      "id": "AC09",
+      "group": "coverage",
+      "label": "BENIGN",
+      "description": "Control character in an ordinary name",
+      "rationale": "CONTROL_CHAR is not scored",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "report\u0007.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": []
+          }
+        ],
+        "attachment_collection": {
+          "state": "COLLECTED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": []
+        }
+      },
+      "expected": {
+        "attachment_status": "NOT_TRIGGERED",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    },
+    {
+      "id": "AC10",
+      "group": "coverage",
+      "label": "BENIGN",
+      "description": "Zero-width flag only in a clipped-out middle",
+      "rationale": "Disclosed, not scored",
+      "email": {
+        "subject": "Document attached",
+        "from": "Accounts <accounts@supplier.example.test>",
+        "reply_to": "",
+        "text_body": "Hello, the document we discussed is attached. Regards, the accounts team.",
+        "html_body": "",
+        "attachment_metadata": [
+          {
+            "filename": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFGGGGGGGGGGGGGGGGGGGG.pdf",
+            "content_type": "application/octet-stream",
+            "size_bytes": 2048,
+            "unavailable_fields": [],
+            "name_clip": {
+              "at": 64,
+              "original_length": 400,
+              "removed_flags": [
+                "ZERO_WIDTH"
+              ]
+            }
+          }
+        ],
+        "attachment_collection": {
+          "state": "TRUNCATED",
+          "regular_count": 1,
+          "inline_count": 0,
+          "omitted_count": 0,
+          "omitted_extensions": [],
+          "omitted_name_flags": [],
+          "reasons": [
+            "field_limit"
+          ]
+        }
+      },
+      "expected": {
+        "attachment_status": "INCONCLUSIVE",
+        "attachment_findings": [],
+        "attachment_points": 0
+      }
+    }
+  ]
+}

@@ -22,7 +22,6 @@ from .scoring import ScoredFinding, ScoringResult, score_engine_result
 API_TOKEN_ENV = "INBOXGUARDIAN_API_TOKEN"
 SCORE_TYPE = "heuristic_risk_index_not_probability"
 PLANNED_CHECK_NAMES = {
-    "attachment_metadata": "attachments",
     "financial_fraud": "payment or financial-fraud requests",
     "nlp_phishing": "machine-learning (NLP) phishing classification",
 }
@@ -187,18 +186,29 @@ def _planned_checks_not_run(engine_result: EngineResult) -> list[str]:
         for detector in engine_result.detector_results
         if detector.detector_id in PLANNED_CHECK_NAMES and detector.status == DetectorStatus.NOT_RUN
     ]
+    # A V1 client sends no attachment information. Attachments then lead this line, as they did before the
+    # attachment check existed, rather than adding a line that pushes message-specific reasons out of view.
+    legacy = engine_result.parsed_email.attachment_coverage.declared_state is None
+    if legacy:
+        names.insert(0, "attachments")
     if not names:
         return []
     listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    if legacy and len(names) == 1:
+        return ["Not checked: attachments. This request included no attachment information, so they were not assessed."]
+    if legacy:
+        return [
+            f"Not checked: {listed}. This request included no attachment information, and the other checks are "
+            "planned but not implemented, so nothing was assessed for them."
+        ]
     return [f"Not checked: {listed}. These planned checks are not implemented, so nothing was assessed for them."]
 
 
 def _attachment_status_lines(engine_result: EngineResult) -> list[str]:
-    # Counts only, never filenames. Collected attachments are reported as not assessed, so listing them is
-    # never read as an attachment check. A V1 client sends no collection state, and the "Not checked" line
-    # already covers that case, so its output is unchanged.
+    # Counts only, never filenames. Whenever names were checked, the line says that content was not. A V1
+    # client's missing attachment information is reported in the "Not checked" line instead.
     coverage = engine_result.parsed_email.attachment_coverage
-    not_assessed = "they were not assessed because attachment checks are not implemented yet."
+    content_not_inspected = "Only attachment names were checked; attachment content was not inspected."
     if coverage.state == AttachmentCollectionState.UNKNOWN:
         if coverage.declared_state is None:
             return []
@@ -210,9 +220,9 @@ def _attachment_status_lines(engine_result: EngineResult) -> list[str]:
     if coverage.state == AttachmentCollectionState.TRUNCATED:
         return [
             f"Attachments: Gmail listed {coverage.regular_count} and details for {coverage.listed_count} were "
-            f"received; {not_assessed}"
+            f"received; the others were not assessed individually. {content_not_inspected}"
         ]
-    return [f"Attachments: Gmail listed {coverage.listed_count}; {not_assessed}"]
+    return [f"Attachments: Gmail listed {coverage.listed_count}. {content_not_inspected}"]
 
 
 def _recommended_action(scoring_result: ScoringResult, *, incomplete: bool) -> str:
@@ -230,6 +240,10 @@ def _recommended_action(scoring_result: ScoringResult, *, incomplete: bool) -> s
         actions.append("do not submit passwords, OTP codes, or login approvals from this email")
     if any(finding_id.startswith("sender_") for finding_id in finding_ids):
         actions.append("verify the sender through an independently established contact channel")
+    if any(finding_id.startswith("attachment_") for finding_id in finding_ids):
+        actions.append(
+            "do not open attachments or enable editing or macros until the sender confirms them through a trusted channel"
+        )
 
     if actions:
         return "Treat this message with caution: " + "; ".join(actions) + "."

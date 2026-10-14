@@ -20,11 +20,11 @@ Preserve `POST /analyze`, `GET /health`, `X-InboxGuardian-Token`, Apps Script pr
 | `sender_identity` | Sender impersonation | Yes; implemented and exposed through backend `/analyze` | `from`, `reply_to`, optional corroborating subject/body | Core |
 | `url_deception` | Deceptive URLs | Yes; implemented and exposed through backend `/analyze` | `text_body`, `html_body`, optionally sender | Core |
 | `credential_context` | Credential phishing | Yes; implemented and exposed through backend `/analyze` | `subject`, `text_body`, safely extracted visible HTML text, optional link evidence | Core |
-| `attachment_metadata` | Suspicious attachments | Yes; not implemented | filename, MIME/content type, size from trustworthy message API access | Later deterministic increment; blocked on actual data collection |
+| `attachment_metadata` | Suspicious attachments | Yes; implemented in WBS 2.5 Stage 2 (branch `wbs-2.5-stage2`, not yet committed, deployed or verified in Gmail) | attachment names and the Stage 1 collection state; MIME type and size are collected but not scored | Deterministic name rules ATT-01 to ATT-08 (section 8) |
 | `financial_fraud` | Payment redirection / financial fraud | Yes; not implemented | subject/body and independent identity/link context | Later deterministic increment; cannot establish historical changes |
 | `nlp_phishing` | NLP phishing classifier (TF-IDF + logistic regression candidate) | Yes; not implemented | labeled training/evaluation data, bounded subject/body | Experimental increment, evaluated before score integration |
 
-The approved **target scope** contains six detectors. This does **not** imply all six are mandatory to claim the first usable three-family vertical slice. Each unimplemented detector must be explicitly labeled *planned/unavailable*, not silently presented as having passed. Upwind's supplied assignment does not mandate a detector count or machine learning; prioritize a reliable Gmail score/verdict/evidence demo over incomplete breadth.
+The approved **target scope** contains six detectors. This does **not** imply all six are mandatory to claim the first usable three-family vertical slice. Each unimplemented detector must be explicitly labeled *planned/unavailable*, not silently presented as having passed. the original private requirements brief does not mandate a detector count or machine learning; prioritize a reliable Gmail score/verdict/evidence demo over incomplete breadth.
 
 Explicit exclusions: dedicated SPF/DKIM/DMARC claims without verified provenance, mailbox-history profiling, QR/image phishing, malware execution or detonation, link visiting or reputation lookups, automatic quarantine, background inbox monitoring, external inference services, and LLM-based verdicts.
 
@@ -90,8 +90,8 @@ These fields are **internal design guidance, not a present API capability**. Pre
 
 - Receives an already validated `EmailPayload`.
 - Calls `parse_email_payload` exactly once.
-- Runs implemented detectors in stable order: `sender_identity`, `url_deception`, `credential_context`.
-- Represents planned but unavailable families as `NOT_RUN`: `attachment_metadata`, `financial_fraud`, `nlp_phishing`.
+- Runs implemented detectors in stable order: `sender_identity`, `url_deception`, `credential_context`, `attachment_metadata`.
+- Represents planned but unavailable families as `NOT_RUN`: `financial_fraud`, `nlp_phishing`.
 - Preserves each detector's `DetectorResult`, findings, evidence source identities, limitations and parser issues.
 - Returns aggregate `findings`, `evidence_sources`, `limitations`, `parse_issues` and `implementation_version`.
 
@@ -184,7 +184,7 @@ Expected HTTP behavior should remain: `/health` 200; authenticated well-formed r
 | Sender | Parsed distinct From/Reply-To domains **plus** impersonation wording, narrowly grounded lookalike | Mailing lists, delegated reply handling, legitimate brand alias | Domain mismatch alone proves spoofing |
 | URLs | Visible claimed host different from actual `href` host; confusing userinfo or deceptive subdomain | Authorized link tracking, link redirects, URL shorteners | URL is malware-hosting without fetching/reputation |
 | Credentials | Request for password/OTP plus an anomalous link or sender context | Legitimate password reset/security alert | Language alone proves credential theft |
-| Attachments | Clear double executable extension or MIME/extension inconsistency from collected metadata | Legitimate macros, scripts, archives in work settings | Attachment contains malware |
+| Attachments | Program or script extension, a document-like extension directly before one, or a bidi control in the name (MIME/extension inconsistency is not scored yet) | Legitimate macros, scripts, HTML reports, SVG logos and archives in work settings | Attachment contains malware, a macro or executable content |
 | Financial fraud | Instructions to change payment details or bypass approvals, with corroborating sender/context anomalies | Legitimate new invoice or approved bank change | Request is historically unusual without history |
 | NLP | Reproducible text-model prediction on held-out samples with evaluation | Domain drift, synthetic leakage, legitimate security alerts | Raw model score is calibrated probability |
 
@@ -232,6 +232,46 @@ Implemented WBS 2.4 rules in `backend/app/detectors/credentials.py`:
 
 The detector uses subject, plain text body, safely extracted visible HTML text and parsed link presence from `ParsedEmail`. The subject, the plain-text body and the visible HTML text are matched as three separate contexts, so a pattern cannot span from one into another. It skips structurally identifiable quoted/forwarded content and never attributes it to the sender, but reports the skip: a forwarded-message marker in the plain-text body, or a body made only of quoted or header-style lines, is recorded as a coverage gap, and quoted `>` lines next to the sender's own text are recorded as a limitation. The security-bypass rule requires its verb and the security term in the same sentence and ignores matches governed by a nearby negation such as "do not disable MFA". HTML is flattened to one line, so quoted or forwarded content that appears only in HTML is not recognised and is analysed. The detector redacts code-like 4-8 digit values from observations, and treats missing or ambiguous credential-related language as `INCONCLUSIVE`. Urgency alone, normal account-security newsletters, legitimate password-reset/MFA notifications, and generic password mentions do not trigger. It does not perform scoring, sender/link correlation beyond link-presence corroboration, language translation, reputation checks, page fetching, or public `/analyze` output.
 
+### Attachment metadata detector milestone (WBS 2.5 Stage 2)
+
+Implemented in `backend/app/detectors/attachments.py` (`detect_suspicious_attachments`, `attachments-0.1.0`) with tests in `tests/unit/test_attachment_detector.py` and a separate synthetic set in `tests/fixtures/evaluation/attachment_cases.json`. It reads only the attachment names and collection state produced by the Stage 1 parser. Attachment content is never downloaded, opened, hashed, executed or uploaded, and no external service is called.
+
+**Final extension.** The text after the last dot, after removing trailing dots and whitespace (Windows ignores them), compared case-insensitively against exact lists. An extension not in a list is never scored.
+
+| Rule | Finding ID | Points | Exact list |
+|---|---|---:|---|
+| ATT-01 | `attachment_executable_extension` | 25 | `exe scr com pif cpl msi msp msix appx jar` |
+| ATT-02 | `attachment_script_extension` | 20 | `bat cmd ps1 psm1 vbs vbe js jse wsf wsh hta lnk` |
+| ATT-03 | `attachment_deceptive_double_extension` | 30 | final extension in ATT-01 or ATT-02, directly preceded by `pdf doc docx xls xlsx ppt pptx rtf txt csv odt ods odp jpg jpeg png gif bmp tif tiff mp3 mp4 mov avi wav zip rar 7z`; padding whitespace and invisible formatting between them are ignored |
+| ATT-04 | `attachment_bidi_control_name` | 20 | any of U+202A-U+202E, U+2066-U+2069 anywhere in the name, including a clipped-out middle |
+| ATT-05 | `attachment_invisible_character_name` | 10 | U+200B, U+2060 or U+FEFF in a received part of the name, or U+200C/U+200D next to an ASCII character |
+| ATT-06 | `attachment_active_content_type` | 10 | `html htm xhtml shtml mht mhtml svg one` |
+| ATT-07 | `attachment_macro_enabled_office` | 10 | `docm dotm xlsm xltm xlam pptm potm ppsm ppam sldm` |
+| ATT-08 | (limitation only) | 0 | name unavailable, clip incoherent, tail only dots/spaces, double extension across a clip, zero-width characters that cannot be located, omitted names not read |
+
+Deliberate exclusions: `.url` and other internet shortcuts (what they open depends on a target inside the file, which is not read; `.lnk` is included because it stores a command line); `.zip`, `.rar`, `.7z`, `.iso`, `.img` and other containers; `.doc`, `.xls`, `.xlsb` and other formats that may but usually do not carry macros; `.sh`, `.py`, `.reg`, `.scf`, `.dll`; ordinary documents and images; MIME types and MIME/extension mismatch (the WBS 2.5A probe did not establish reliable MIME values); attachment size; filename language or script. U+200E/U+200F/U+061C directional marks are used in ordinary right-to-left text and are not flagged. ZWJ/ZWNJ between non-ASCII letters (Persian, Indic, emoji sequences) are not flagged. Other invisible characters (soft hyphen, U+2061-U+2064, Hangul fillers) and control characters are not scored.
+
+**Coverage mapping.**
+
+| Collection state | Detector status | Notes |
+|---|---|---|
+| `COLLECTED` | `TRIGGERED` or `NOT_TRIGGERED` | All names checked; identical metadata entries checked once. |
+| `NONE` | `NOT_TRIGGERED` | Gmail explicitly listed no regular attachments. |
+| `TRUNCATED` | `TRIGGERED` if any reliable finding, otherwise `INCONCLUSIVE` | Partial names evaluated only where reliable; gaps disclosed as limitations. |
+| `UNAVAILABLE` | `INCONCLUSIVE` | |
+| `UNKNOWN` (no collection state, or one that contradicts the list) | `INCONCLUSIVE` | Names that arrive without a trustworthy state are not evaluated. |
+| internal failure | `NOT_RUN` | Engine reports only the exception type; the assessment becomes `INCOMPLETE`. |
+
+`INCONCLUSIVE` adds no coverage gap, so it never changes the verdict of a legacy request; missing metadata never lowers risk.
+
+**Clipped names** (Stage 1 keeps the first 64 and last 191 code points). Head and tail are never joined. The clip is used only if the claimed original length exceeds the received head plus tail and the tail is not only dots and whitespace. The tail is the end of the original name, so an extension whose dot is inside it is the real one; a double extension counts only when both dots are inside the tail. A dot-free tail means any extension is longer than the tail and so in no list. A bidi flag from the clipped-out middle counts; a zero-width flag from it does not, because a legitimate joiner cannot be told apart there.
+
+**Omitted attachments** (beyond 25, or past the time budget). Used only in `TRUNCATED` with a nonzero omitted count. The add-on reports a set of lower-cased final extensions computed exactly as above and a set of character-class flags. Only an exact list match counts, so malformed entries are ignored; double extensions and zero-width flags are not evaluated. All omitted-summary findings share the evidence ID `attachment:omitted` and are credited at most once.
+
+**Evidence.** Each finding has a stable ID, severity (`medium` for ATT-01 to ATT-04, `low` for ATT-05 to ATT-07), title, observation and cautious interpretation stating that file contents were not inspected. Observations identify the attachment only by its position in Gmail's list and quote only extensions from the lists above. Filenames, MIME strings and hidden characters never appear in findings, limitations or logs. Evidence IDs are `attachment:{position}` and contain no name.
+
+**Scoring.** See `docs/scoring-policy.md`: family cap 35; strongest rule per attachment; ATT-01 to ATT-04 are independent evidence; correlation bonus 0; thresholds unchanged.
+
 ### Internal orchestration milestone
 
 Implemented in `backend/app/engine.py` with synthetic tests in `tests/unit/test_engine.py`:
@@ -240,7 +280,7 @@ Implemented in `backend/app/engine.py` with synthetic tests in `tests/unit/test_
 - Sender, URL and credential detectors run on the same `ParsedEmail`.
 - Detector statuses remain independent; missing sender data does not prevent URL or credential checks.
 - Findings and evidence identifiers are preserved for later Method C deduplication and correlation accounting.
-- Planned attachment, financial and NLP detectors are represented as explicit `NOT_RUN` outcomes when included.
+- Planned financial and NLP detectors are represented as explicit `NOT_RUN` outcomes when included. The attachment detector has run since WBS 2.5 Stage 2.
 - The engine assigns no score or verdict and does not treat zero findings as proof of safety.
 - Malformed evidence and unexpected detector failures are not converted into clean `NOT_TRIGGERED` results.
 
@@ -255,13 +295,14 @@ A real Gmail account must show a suspicious/high-risk synthetic example, a benig
 ## 9. Open decisions requiring explicit approval before public scoring integration
 
 1. **`INCONCLUSIVE` and the clean verdict:** `docs/scoring-policy.md` makes `NO_SIGNIFICANT_SIGNALS` eligible only when sender identity and at least one body/link-oriented family completed as `NOT_TRIGGERED`. The code does not consult detector statuses for this, so usable content with inconclusive URL and credential checks still receives `NO_SIGNIFICANT_SIGNALS`. Whether to change the code or the policy is undecided. (The earlier item here, live Gmail verification, was completed on 2026-10-13.)
-2. **Attachment availability:** resolved for metadata by the WBS 2.5A probe (existing scope sufficient) and the Stage 1 collection-state contract. Still open: forwarded `.eml` attachments (T09) and whether large attachments are loaded at call time.
+2. **Attachment availability:** resolved for metadata by the WBS 2.5A probe (existing scope sufficient) and the Stage 1 collection-state contract. Still open: forwarded `.eml` attachments (T09), whether large attachments are loaded at call time, and real-Gmail verification of the Stage 1 collector and Stage 2 detector through the real add-on.
 3. **NLP go/no-go:** available legally usable representative labeled dataset, reproducible training and actual incremental performance; model output may remain informational if evidence is weak.
 4. **Response extension:** whether a later API version needs explicit per-detector statuses, coverage and score-reconciliation fields; do not alter `1.0` without review.
 5. **Parsing policy still open beyond WBS 2.1:** whether to add public-suffix/registered-domain comparison and any future schema support for reliable upstream truncation flags. Initial URL/HTML bounds and IDNA hostname normalization are pinned in parser tests.
+6. **Weak attachment findings and the verdict label:** a single 10-point attachment finding leaves the verdict `NO_SIGNIFICANT_SIGNALS` while the finding is shown (see the known limitation in `docs/scoring-policy.md`). Changing that is a scoring-policy decision, not part of Stage 2.
 
 ## 10. First bounded implementation milestone and handoff
 
-**Milestone status:** the synchronization and manual verification originally listed here as the next task were completed on 2026-10-13; current next steps are in the Session Handoff of `PROJECT_OBJECTIVE.md`. The standing rules remain: do not add detector families, new Gmail scopes, model training, deploys or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and manual Gmail evidence. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit `UPWIND_HOME_ASSIGNMENT.md`, `.clasp.json`, real `.env`, credentials or real email content.
+**Milestone status:** the synchronization and manual verification originally listed here as the next task were completed on 2026-10-13; current next steps are in the Session Handoff of `PROJECT_OBJECTIVE.md`. The standing rules remain: do not add detector families, new Gmail scopes, model training, deploys or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and manual Gmail evidence. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit the private requirements brief, `.clasp.json`, real `.env`, credentials or real email content.
 
-**Gate for this document:** Backend `/analyze` returns real scored results and Gmail renders them through the existing authenticated flow; G2 is recorded as achieved for the first three-family slice in `WBS.md`.
+**Gate for this document:** Backend `/analyze` returns real scored results and Gmail renders them through the existing authenticated flow; G2 is recorded as achieved for the first four implemented families in `WBS.md`, with attachment metadata still awaiting Gmail verification.

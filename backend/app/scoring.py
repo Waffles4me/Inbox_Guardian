@@ -10,17 +10,19 @@ from backend.app.parsing import ParseStatus
 
 ScoreVerdict = Literal["HIGH_RISK", "SUSPICIOUS", "NO_SIGNIFICANT_SIGNALS", "INCOMPLETE"]
 
-IMPLEMENTATION_VERSION = "scoring-0.1.0"
+IMPLEMENTATION_VERSION = "scoring-0.2.0"
 CORRELATION_BONUS = 0
 SUSPICIOUS_THRESHOLD = 20
 
-IMPLEMENTED_FAMILIES = frozenset({"sender_identity", "url_deception", "credential_context"})
-PLANNED_FAMILIES = frozenset({"attachment_metadata", "financial_fraud", "nlp_phishing"})
+SCORED_FAMILY_ORDER = ("sender_identity", "url_deception", "credential_context", "attachment_metadata")
+IMPLEMENTED_FAMILIES = frozenset(SCORED_FAMILY_ORDER)
+PLANNED_FAMILIES = frozenset({"financial_fraud", "nlp_phishing"})
 
 FAMILY_CAPS: dict[str, int] = {
     "sender_identity": 20,
     "url_deception": 40,
     "credential_context": 25,
+    "attachment_metadata": 35,
 }
 
 FINDING_WEIGHTS: dict[str, int] = {
@@ -35,6 +37,13 @@ FINDING_WEIGHTS: dict[str, int] = {
     "credential_urgent_account_threat": 10,
     "credential_request_with_link": 0,
     "credential_security_bypass_instruction": 20,
+    "attachment_executable_extension": 25,
+    "attachment_script_extension": 20,
+    "attachment_deceptive_double_extension": 30,
+    "attachment_bidi_control_name": 20,
+    "attachment_invisible_character_name": 10,
+    "attachment_active_content_type": 10,
+    "attachment_macro_enabled_office": 10,
 }
 
 INDEPENDENT_FINDING_IDS = frozenset(
@@ -48,6 +57,12 @@ INDEPENDENT_FINDING_IDS = frozenset(
         "credential_secret_collection_request",
         "credential_urgent_account_threat",
         "credential_security_bypass_instruction",
+        # The weak attachment rules (invisible characters, active content, macro-enabled Office) are common in
+        # legitimate mail and are not independent evidence on their own.
+        "attachment_executable_extension",
+        "attachment_script_extension",
+        "attachment_deceptive_double_extension",
+        "attachment_bidi_control_name",
     }
 )
 
@@ -96,7 +111,7 @@ def score_engine_result(result: EngineResult) -> ScoringResult:
     detector_results = {detector.detector_id: detector for detector in result.detector_results}
     family_scores = tuple(
         _score_family(detector_results[detector_id])
-        for detector_id in ("sender_identity", "url_deception", "credential_context")
+        for detector_id in SCORED_FAMILY_ORDER
         if detector_id in detector_results
     )
     scored_findings = tuple(scored for family in family_scores for scored in family.findings)
@@ -197,6 +212,10 @@ def _reconcile_duplicate_evidence(scored: list[ScoredFinding]) -> list[ScoredFin
 def _deduplication_key(finding: DetectorFinding) -> str:
     if finding.id in {"url_display_destination_mismatch", "url_deceptive_subdomain"}:
         return f"url.link_deception:{_evidence_tail(finding.evidence_id)}"
+    if finding.id.startswith("attachment_"):
+        # Every attachment rule reads the same filename, so one attachment is credited only for its strongest
+        # rule. Distinct attachments keep separate keys and are limited by the family cap instead.
+        return f"attachment.name:{finding.evidence_id}"
     return f"{finding.id}:{finding.evidence_id}"
 
 
