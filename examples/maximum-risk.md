@@ -73,14 +73,19 @@ The backend must report analysis version `engine-0.3.0+scoring-0.3.0` under **Ad
 
 ### Observed result
 
-*Not yet run in Gmail.* Record the verdict, score, analysis version and any difference from the expected result here. Do not copy the expected values.
+**Observed in Gmail (V1.1, 2026-10-14): 65/100, "High risk — Treat with caution", six findings.** The visible findings are "Gift-card code request" (+30) and "Message asks for login secrets" (+20).
 
-The live G13 test (observed 25/100) is a separate message and is not an observation of this draft. It is recorded in the [live observation log](README.md#live-gmail-observation-log).
+The message that was sent ("[IG-FINAL] MAX — Multi-vector Phishing Demonstration") is not the draft above:
+
+- It has one link whose visible text is a URL, instead of two links whose visible text differs from the destination.
+- Its payment and gift-card sentences are worded differently.
+
+The per-family breakdown was not captured, so the exact cause of the gap between 65 and the automated 100 has not been verified. The 100/100 result above is automated, on fabricated input; it is not a live observation.
+
+The live G13 test (observed 25/100 earlier and 55/100 on V1.1) is a separate message and is not an observation of this draft. It is recorded in the [live observation log](README.md#live-gmail-observation-log).
 
 ---
 
-**INSERT SCREENSHOT HERE**
-
-Suggested file: `screenshots/11-maximum-risk.png` (relative to this folder). Before saving, crop or redact your address, account picture, the inbox list and any tunnel URL.
+<img src="screenshots/MAX.png" alt="InboxGuardian panel for the live multi-vector test: High risk, risk index 65/100, main finding Gift-card code request" width="300">
 
 ---
