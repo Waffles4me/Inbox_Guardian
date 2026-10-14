@@ -221,8 +221,8 @@ def test_benign_result_is_neutral_and_never_called_safe(monkeypatch) -> None:
         None,
         "Assessment",
         "Key findings",
-        "Public link reputation",
         "Recommended action",
+        "Public link reputation",
         "Analysis coverage",
         "Additional details",
     ]
@@ -587,3 +587,164 @@ def test_only_supported_inert_widgets_are_used(monkeypatch) -> None:
         "MaterialIcon",
     }
     assert_card_is_inert(card)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard presentation: display interpretations never change the backend verdict or score.
+# ---------------------------------------------------------------------------
+
+WEAK_LABEL = "Weak indicator detected — Review findings"
+WEAK_FINDING = {
+    "id": "attachment_html_extension",
+    "severity": "low",
+    "title": "Attachment is an HTML page",
+    "observation": "One attachment name ends in .html.",
+    "interpretation": "HTML attachments can imitate sign-in pages.",
+    "contribution": 10,
+}
+
+
+@pytest.mark.parametrize(
+    ("verdict", "score", "headline", "weak", "shown_score", "filled"),
+    [
+        ("NO_SIGNIFICANT_SIGNALS", 0, "No significant suspicious signals found", False, "0/100", 0),
+        ("NO_SIGNIFICANT_SIGNALS", 5, "No significant suspicious signals found", True, "5/100", 1),
+        ("NO_SIGNIFICANT_SIGNALS", 10, "No significant suspicious signals found", True, "10/100", 1),
+        ("NO_SIGNIFICANT_SIGNALS", 19, "No significant suspicious signals found", True, "19/100", 2),
+        ("SUSPICIOUS", 20, 'Suspicious</font></b><font color="#B06000"> — Verification recommended', False, "20/100", 2),
+        ("HIGH_RISK", 60, 'High risk</font></b><font color="#B3261E"> — Treat with caution', False, "60/100", 6),
+        ("INCOMPLETE", 0, 'Assessment incomplete</font></b><font color="#7A5C00"> — Not a low-risk result', False,
+         None, None),
+    ],
+    ids=["nss-0", "nss-5", "nss-10", "nss-19", "suspicious-20", "high-60", "incomplete"],
+)
+def test_verdict_presentation_by_score(verdict, score, headline, weak, shown_score, filled) -> None:
+    findings = [WEAK_FINDING] if score else []
+    card = render(synthetic_result(verdict=verdict, risk_score=score, findings=findings))
+    assessment = card.section("Assessment")
+    widgets = card.widgets(assessment)
+    text = card.all_text(assessment)
+
+    assert headline in widgets[0]["setText"]
+    assert widgets[0]["setTopLabel"] == "Verdict"
+    assert (WEAK_LABEL in text) is weak
+    if weak:
+        note = widgets[1]
+        assert note["setTopLabel"] == "Display interpretation"
+        assert "backend verdict above is unchanged" in note["setBottomLabel"]
+        assert "not confirmed malicious" in widgets[2]["setText"]
+        assert "does not guarantee" in widgets[2]["setText"]
+        assert "#1E6B3A" not in widgets[-1]["setText"]
+    if shown_score is None:
+        assert "/100" not in card.all_text()
+        assert "■" not in card.all_text()
+    else:
+        score_widget = widgets[-1]
+        assert shown_score in score_widget["setText"]
+        assert score_widget["setText"].count("■") == filled
+        assert score_widget["setText"].count("■") + score_widget["setText"].count("□") == 10
+    assert "safe" not in widgets[0]["setText"].lower()
+
+
+def analyze_attachment(monkeypatch, filename: str, content_type: str) -> dict:
+    return analyze(
+        monkeypatch,
+        text_body="Lunch is at noon in the usual room.",
+        attachment_metadata=[
+            {"filename": filename, "content_type": content_type, "size_bytes": 10, "unavailable_fields": []}
+        ],
+        attachment_collection={"state": "COLLECTED", "regular_count": 1, "inline_count": 0, "omitted_count": 0,
+                               "omitted_extensions": [], "omitted_name_flags": [], "reasons": []},
+    )
+
+
+def test_weak_indicator_from_the_real_backend_keeps_its_verdict(monkeypatch) -> None:
+    result = analyze_attachment(monkeypatch, "ig-page.html", "text/html")
+    assert result["verdict"] == "NO_SIGNIFICANT_SIGNALS" and 0 < result["risk_score"] < 20
+    card = render(result)
+    text = card.all_text(card.section("Assessment"))
+
+    assert "No significant suspicious signals found" in text
+    assert WEAK_LABEL in text
+    assert f"{result['risk_score']}/100" in text
+
+
+def test_finding_separates_observation_from_interpretation_and_drops_repeats() -> None:
+    repeated = dict(WEAK_FINDING, id="repeat", interpretation=WEAK_FINDING["observation"])
+    only_interpretation = dict(WEAK_FINDING, id="interp", observation="")
+    card = render(synthetic_result(findings=[WEAK_FINDING, repeated, only_interpretation]))
+    widgets = card.widgets(card.section("Key findings"))
+    paragraphs = [widget["setText"] for widget in widgets if widget["type"] == "TextParagraph"]
+
+    assert paragraphs[0] == (
+        "One attachment name ends in .html.<br><i>Why it matters:</i> HTML attachments can imitate sign-in pages."
+    )
+    assert paragraphs[1] == "One attachment name ends in .html."
+    assert paragraphs[2] == "<i>Why it matters:</i> HTML attachments can imitate sign-in pages."
+    assert widgets[0]["setTopLabel"] == "+10 to risk index · Low severity"
+
+
+def test_long_finding_text_shares_one_bounded_budget() -> None:
+    long_finding = dict(WEAK_FINDING, title="T" * 500, observation="o" * 600, interpretation="z" * 600)
+    card = render(synthetic_result(findings=[long_finding]))
+    widgets = card.widgets(card.section("Key findings"))
+
+    assert widgets[0]["setText"] == "<b>" + "T" * 120 + "</b>"
+    body = widgets[1]["setText"]
+    assert body.count("o") == 600
+    assert body.count("z") == 100
+
+
+def test_hostile_interpretation_is_escaped_separately() -> None:
+    finding = dict(WEAK_FINDING, observation="<b>x</b>", interpretation='<a href="https://evil.test/?t=1">go</a>')
+    card = render(synthetic_result(findings=[finding]))
+    body = card.widgets(card.section("Key findings"))[1]["setText"]
+
+    assert "&lt;b&gt;x&lt;/b&gt;" in body
+    assert "&lt;a href=" in body and "t=1" not in body
+    assert_card_is_inert(card)
+
+
+def test_reputation_follows_the_action_and_is_labelled_external() -> None:
+    hostile_status = '<b onmouseover="x">CLEAN</b>'
+    result = synthetic_result(
+        reputation_context=[
+            {"indicator_type": "domain", "indicator": "example.org", "status": "UNKNOWN",
+             "summary": "No malicious detections; unknown, not clean.", "caveat": "Context only."},
+            {"indicator_type": "ip_address", "indicator": "192.0.2.1", "status": hostile_status},
+        ],
+    )
+    card = render(result)
+    headers = card.headers()
+    reputation = card.section("Reputation context")
+    labels = [widget.get("setTopLabel", "") for widget in card.widgets(reputation)]
+    text = card.all_text(reputation)
+
+    assert headers.index("Recommended action") < headers.index("Reputation context")
+    assert headers.index("Reputation context") < headers.index("Analysis coverage")
+    assert "External enrichment · VirusTotal" in labels
+    assert "Domain · VirusTotal · UNKNOWN" in labels
+    assert "IP address · VirusTotal · UNKNOWN" in labels
+    assert "CLEAN" not in text
+    assert "Â" not in card.all_text()
+    assert "zero detections do not mean an indicator is safe" in text
+    assert "full URLs, paths, query strings and attachments were not sent" in text
+    assert_card_is_inert(card)
+
+
+def test_coverage_groups_attachment_status_and_never_implies_safety() -> None:
+    limitations = [
+        "Attachments: Gmail listed 30 and details for 25 were assessed; the rest were not assessed.",
+        "Quoted reply lines in the plain-text body were not assessed for credential requests.",
+        "Not checked: machine-learning (NLP) phishing classification.",
+    ]
+    card = render(synthetic_result(verdict="NO_SIGNIFICANT_SIGNALS", risk_score=0, limitations=limitations))
+    coverage = card.section("Analysis coverage")
+    widgets = card.widgets(coverage)
+    attachment = next(widget for widget in widgets if widget.get("setTopLabel") == "Attachments")
+
+    assert attachment["setText"].startswith("Gmail listed 30 and details for 25")
+    assert any(widget.get("setTopLabel") == "Not checked" for widget in widgets)
+    assert "Quoted reply lines" in card.all_text(coverage)
+    assert "does not guarantee that a message is safe" in widgets[-1]["setText"]
+    assert "Gmail listed 30" not in card.all_text(card.section("Additional details"))

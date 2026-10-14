@@ -65,8 +65,9 @@ def test_addon_limits_findings_and_preserves_backend_findings() -> None:
     assert "MAX_RENDERED_FINDINGS = 12" in ADDON_SOURCE
     assert "MAX_FINDING_SUMMARY_CHARS = 700" in ADDON_SOURCE
     assert "result.findings.slice(0, MAX_RENDERED_FINDINGS)" in ADDON_SOURCE
-    assert "truncate_(parts.join(' '), MAX_FINDING_SUMMARY_CHARS)" in ADDON_SOURCE
-    assert "findingSummary_" in ADDON_SOURCE
+    assert "truncate_(observation, MAX_FINDING_SUMMARY_CHARS)" in ADDON_SOURCE
+    assert "truncate_(interpretation, MAX_FINDING_SUMMARY_CHARS - observation.length)" in ADDON_SOURCE
+    assert "findingSummaryHtml_" in ADDON_SOURCE
     assert "to risk index" in ADDON_SOURCE
     assert ".sort(" not in ADDON_SOURCE
 
@@ -103,7 +104,8 @@ def test_addon_requires_separate_virustotal_consent_action() -> None:
 
 def test_addon_escapes_backend_provided_text() -> None:
     assert "escapeHtml_(findingTitle_(finding))" in ADDON_SOURCE
-    assert "escapeHtml_(findingSummary_(finding))" in ADDON_SOURCE
+    assert "escapeHtml_(parts.observation)" in ADDON_SOURCE
+    assert "escapeHtml_(parts.interpretation)" in ADDON_SOURCE
     assert "return CardService.newDecoratedText()" in ADDON_SOURCE
     assert ".setText(escapeHtml_(safeString_(text)))" in ADDON_SOURCE
     assert "html: escapeHtml_(action)" in ADDON_SOURCE

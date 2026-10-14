@@ -43,6 +43,7 @@ var VERDICT_STYLES = {
     color: '#B3261E',
     icon: 'gpp_bad',
     showScore: true,
+    guidance: 'Treat with caution',
     summary: 'Strong suspicious evidence was found. This is not proof of phishing or malware.'
   },
   SUSPICIOUS: {
@@ -50,6 +51,7 @@ var VERDICT_STYLES = {
     color: '#B06000',
     icon: 'warning',
     showScore: true,
+    guidance: 'Verification recommended',
     summary: 'Suspicious evidence was found. Verify this message before acting on it.'
   },
   NO_SIGNIFICANT_SIGNALS: {
@@ -57,6 +59,7 @@ var VERDICT_STYLES = {
     color: '#1E6B3A',
     icon: 'info',
     showScore: true,
+    guidance: '',
     summary: 'The checks that ran found no significant suspicious evidence. This does not guarantee the message is legitimate.'
   },
   INCOMPLETE: {
@@ -64,6 +67,7 @@ var VERDICT_STYLES = {
     color: '#7A5C00',
     icon: 'help',
     showScore: false,
+    guidance: 'Not a low-risk result',
     summary: 'There was not enough assessed content to reach a verdict. This is not a low-risk result.'
   }
 };
@@ -72,7 +76,18 @@ var UNKNOWN_VERDICT_STYLE = {
   color: '#5F6368',
   icon: 'help',
   showScore: false,
+  guidance: '',
   summary: 'The backend returned a verdict this add-on does not recognise, so no score is shown.'
+};
+// Display interpretation for NO_SIGNIFICANT_SIGNALS with a positive score: a finding exists but stayed below
+// the Suspicious threshold. It is shown beside the backend verdict and never replaces it.
+var WEAK_INDICATOR_STYLE = {
+  label: 'Weak indicator detected — Review findings',
+  color: '#8C5300',
+  icon: 'flag',
+  note: 'Display note only; the backend verdict above is unchanged',
+  summary: 'A finding added to the risk index, but not enough to reach the Suspicious verdict. It is not ' +
+    'confirmed malicious. Review the finding before acting. This does not guarantee the message is legitimate.'
 };
 var SEVERITY_LABELS = {
   info: 'Informational',
@@ -93,6 +108,8 @@ var IMPLEMENTED_CHECKS = [
 var NOT_CHECKED_RE = /^\s*not checked:\s*/i;
 var SCORE_PLACEHOLDER_RE = /required-schema placeholder/i;
 var COVERAGE_NOTE_RE = /not assessed|not inspected|not analy[sz]ed|could not (?:be |fully )?(?:evaluat|assess)|did not run|must not be treated as clean/i;
+var REPUTATION_STATUSES = /^(?:SUSPICIOUS|UNKNOWN|UNAVAILABLE)$/;
+var ATTACHMENT_NOTE_RE = /^\s*attachments:\s*/i;
 var SPECIFIC_LIMITATION_RE = /malformed|unsupported|truncated|was capped|parser recorded|lacked enough|no supported url evidence|inconsistent/i;
 
 function buildHomepage() {
@@ -467,12 +484,13 @@ function buildMessageCard_(email, result, errorMessage) {
 
 function resultSections_(result) {
   var limitations = splitLimitations_(result.limitations);
+  // Most decisive information first; optional external enrichment after the action; technical detail last.
   return [
     verdictSection_(result),
     findingsSection_(result),
+    actionSection_(result),
     reputationSection_(result),
     reputationConsentSection_(result),
-    actionSection_(result),
     coverageSection_(result, limitations),
     detailsSection_(result, limitations)
   ].filter(function(section) {
@@ -529,18 +547,41 @@ function errorSection_(errorMessage) {
 
 function verdictSection_(result) {
   var style = verdictStyle_(result.verdict);
-  return CardService.newCardSection()
+  var weak = isWeakIndicator_(result);
+  var headline = '<b>' + colored_(style.label, style.color) + '</b>';
+  if (style.guidance) {
+    headline += colored_(' — ' + style.guidance, style.color);
+  }
+  var section = CardService.newCardSection()
     .setHeader('Assessment')
     .addWidget(
       iconText_({
         topLabel: 'Verdict',
         icon: style.icon,
         iconLabel: style.label,
-        html: '<b>' + colored_(style.label, style.color) + '</b>'
+        html: headline
       })
-    )
-    .addWidget(textParagraph_(style.summary))
-    .addWidget(riskScoreWidget_(result, style));
+    );
+  if (weak) {
+    section.addWidget(
+      iconText_({
+        topLabel: 'Display interpretation',
+        icon: WEAK_INDICATOR_STYLE.icon,
+        iconLabel: 'Weak indicator',
+        html: '<b>' + colored_(WEAK_INDICATOR_STYLE.label, WEAK_INDICATOR_STYLE.color) + '</b>',
+        bottomLabel: WEAK_INDICATOR_STYLE.note
+      })
+    );
+  }
+  return section
+    .addWidget(textParagraph_(weak ? WEAK_INDICATOR_STYLE.summary : style.summary))
+    .addWidget(riskScoreWidget_(result, weak ? WEAK_INDICATOR_STYLE : style));
+}
+
+// True only for the backend's NO_SIGNIFICANT_SIGNALS verdict with a positive, in-range score.
+function isWeakIndicator_(result) {
+  var score = meaningfulScore_(result);
+  return result.verdict === 'NO_SIGNIFICANT_SIGNALS' && score !== null && score > 0;
 }
 
 function verdictStyle_(verdict) {
@@ -585,7 +626,11 @@ function riskScoreText_(result) {
 }
 
 function riskBar_(score) {
+  // Any positive score fills at least one segment, so a weak indicator never looks like an empty bar.
   var filled = Math.min(RISK_BAR_SEGMENTS, Math.round((score / 100) * RISK_BAR_SEGMENTS));
+  if (score > 0 && filled === 0) {
+    filled = 1;
+  }
   var bar = '';
   for (var index = 0; index < RISK_BAR_SEGMENTS; index++) {
     bar += index < filled ? '■' : '□';
@@ -658,7 +703,7 @@ function findingWidgets_(finding, verdict) {
       iconLabel: 'Finding',
       html: '<b>' + escapeHtml_(findingTitle_(finding)) + '</b>'
     }),
-    textParagraph_(escapeHtml_(findingSummary_(finding)))
+    textParagraph_(findingSummaryHtml_(finding))
   ];
 }
 
@@ -666,20 +711,29 @@ function findingTitle_(finding) {
   return truncate_(safeString_(finding && finding.title ? finding.title : 'Finding'), MAX_FINDING_TITLE_CHARS);
 }
 
-function findingSummary_(finding) {
-  var parts = [];
-  var observation = safeString_(finding && finding.observation);
-  var interpretation = safeString_(finding && finding.interpretation);
-  if (observation) {
-    parts.push(observation);
+// What was observed and what it may mean, as separate lines. Each part is escaped on its own and the two
+// share one MAX_FINDING_SUMMARY_CHARS budget; an interpretation that repeats the observation is not shown twice.
+function findingSummaryHtml_(finding) {
+  var parts = findingSummaryParts_(finding);
+  var html = escapeHtml_(parts.observation);
+  if (parts.interpretation) {
+    html += (html ? '<br>' : '') + '<i>Why it matters:</i> ' + escapeHtml_(parts.interpretation);
   }
-  if (interpretation) {
-    parts.push(interpretation);
+  return html;
+}
+
+function findingSummaryParts_(finding) {
+  var observation = safeString_(finding && finding.observation).trim();
+  var interpretation = safeString_(finding && finding.interpretation).trim();
+  if (interpretation === observation) {
+    interpretation = '';
   }
-  if (!parts.length) {
-    parts.push('No concise observation was provided.');
+  if (!observation && !interpretation) {
+    observation = 'No concise observation was provided.';
   }
-  return truncate_(parts.join(' '), MAX_FINDING_SUMMARY_CHARS);
+  observation = truncate_(observation, MAX_FINDING_SUMMARY_CHARS);
+  interpretation = truncate_(interpretation, MAX_FINDING_SUMMARY_CHARS - observation.length);
+  return {observation: observation, interpretation: interpretation};
 }
 
 // Labels are plain text in CardService, so they are built only from numbers and known words.
@@ -701,7 +755,7 @@ function findingLabel_(finding, verdict) {
 }
 
 // ---------------------------------------------------------------------------
-// C. Recommended action
+// C. Recommended action and optional reputation context
 // ---------------------------------------------------------------------------
 
 function reputationSection_(result) {
@@ -713,8 +767,18 @@ function reputationSection_(result) {
   var section = CardService.newCardSection()
     .setHeader('Reputation context')
     .addWidget(
+      iconText_({
+        topLabel: 'External enrichment · VirusTotal',
+        icon: 'travel_explore',
+        iconLabel: 'External enrichment',
+        html: 'Optional VirusTotal reputation context is shown separately and does not change the risk score or verdict.',
+        bottomLabel: 'Few or zero detections do not mean an indicator is safe'
+      })
+    )
+    .addWidget(
       textParagraph_(
-        'Optional VirusTotal reputation context is shown separately and does not change the risk score or verdict.'
+        'Shared with VirusTotal at your request: only normalized public domains or public IP addresses from ' +
+        'this message\'s links. Message text, full URLs, paths, query strings and attachments were not sent.'
       )
     );
 
@@ -744,8 +808,10 @@ function reputationWidgets_(context) {
 
 function reputationLabel_(context) {
   var type = safeString_(context && context.indicator_type) === 'ip_address' ? 'IP address' : 'Domain';
-  var status = safeString_(context && context.status) || 'UNKNOWN';
-  return type + ' Â· VirusTotal Â· ' + status;
+  var rawStatus = safeString_(context && context.status);
+  // Status comes from the backend, so only known plain words are shown in this plain-text label.
+  var status = REPUTATION_STATUSES.test(rawStatus) ? rawStatus : 'UNKNOWN';
+  return type + ' · VirusTotal · ' + status;
 }
 
 function reputationIndicator_(context) {
@@ -824,9 +890,9 @@ function coverageSection_(result, limitations) {
     .setHeader('Analysis coverage')
     .addWidget(
       iconText_({
-        topLabel: 'Checks in this version',
+        topLabel: 'Checks run by this version',
         icon: 'rule',
-        iconLabel: 'Checks in this version',
+        iconLabel: 'Checks run by this version',
         html: IMPLEMENTED_CHECKS.join(' · '),
         bottomLabel: 'A listed check can still be inconclusive for a given message'
       })
@@ -847,8 +913,19 @@ function coverageSection_(result, limitations) {
     );
   }
 
-  if (limitations.coverageNotes.length) {
+  if (limitations.coverageNotes.length || limitations.attachmentNotes.length) {
     section.addWidget(textParagraph_('<b>Coverage limits for this message</b>'));
+    // Attachment notes say how much attachment metadata was assessed; content is never inspected.
+    limitations.attachmentNotes.forEach(function(note) {
+      section.addWidget(
+        iconText_({
+          topLabel: 'Attachments',
+          icon: 'attach_file',
+          iconLabel: 'Attachment coverage',
+          html: escapeHtml_(note.replace(ATTACHMENT_NOTE_RE, ''))
+        })
+      );
+    });
     limitations.coverageNotes.forEach(function(note) {
       section.addWidget(
         iconText_({
@@ -865,13 +942,17 @@ function coverageSection_(result, limitations) {
   } else {
     section.addWidget(textParagraph_('No message-specific coverage limits were reported.'));
   }
+  section.addWidget(
+    textParagraph_('<i>A low or zero risk index does not guarantee that a message is safe.</i>')
+  );
   return section;
 }
 
 // Splits the backend limitations for display without dropping any of them:
-//   notChecked    - the backend's own statement of planned checks that did not run
-//   coverageNotes - reasons that are specific to this message (incomplete reasons, excluded content)
-//   details       - everything else, message-specific notes first
+//   notChecked      - the backend's own statement of planned checks that did not run
+//   attachmentNotes - the backend's "Attachments:" status lines (how much metadata was assessed)
+//   coverageNotes   - reasons that are specific to this message (incomplete reasons, excluded content)
+//   details         - everything else, message-specific notes first
 function splitLimitations_(limitations) {
   var lines = [];
   var seen = {};
@@ -884,6 +965,7 @@ function splitLimitations_(limitations) {
   });
 
   var notChecked = '';
+  var attachmentNotes = [];
   var coverageNotes = [];
   var specific = [];
   var generic = [];
@@ -897,6 +979,8 @@ function splitLimitations_(limitations) {
       beforeNotChecked = false;
     } else if (SCORE_PLACEHOLDER_RE.test(line)) {
       specific.push(line);
+    } else if (ATTACHMENT_NOTE_RE.test(line) && attachmentNotes.length < MAX_COVERAGE_NOTES) {
+      attachmentNotes.push(line);
     } else if ((beforeNotChecked || COVERAGE_NOTE_RE.test(line)) && coverageNotes.length < MAX_COVERAGE_NOTES) {
       coverageNotes.push(line);
     } else if (beforeNotChecked || COVERAGE_NOTE_RE.test(line) || SPECIFIC_LIMITATION_RE.test(line)) {
@@ -908,6 +992,7 @@ function splitLimitations_(limitations) {
 
   return {
     notChecked: notChecked,
+    attachmentNotes: attachmentNotes,
     coverageNotes: coverageNotes,
     details: specific.concat(generic)
   };

@@ -499,7 +499,7 @@ def test_attachment_status_is_shown_under_analysis_coverage(monkeypatch) -> None
     collected_text = "\n".join(section["text"] for section in rendered["collected"])
 
     assert (
-        "Attachments: Gmail listed 1. Only attachment names were checked; attachment content was not inspected."
+        "Gmail listed 1. Only attachment names were checked; attachment content was not inspected.\nAttachments"
         in coverage["collected"]
     )
     assert "Coverage limits for this message" in coverage["collected"]
