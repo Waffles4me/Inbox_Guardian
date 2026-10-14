@@ -71,7 +71,7 @@ def engine_result(
         by_id.get("credential_context", detector("credential_context")),
         # A request without attachment collection leaves the attachment check inconclusive.
         by_id.get("attachment_metadata", detector("attachment_metadata", status=DetectorStatus.INCONCLUSIVE)),
-        planned("financial_fraud"),
+        by_id.get("financial_fraud", detector("financial_fraud")),
         planned("nlp_phishing"),
     ]
     parsed = parse_email_payload(email or payload())
@@ -169,7 +169,7 @@ def test_category_caps_limit_family_contribution() -> None:
     assert result.risk_score == 25
 
 
-def test_maximum_current_total_is_eighty_five() -> None:
+def test_maximum_current_total_is_one_hundred_after_clamping() -> None:
     result = score_for(
         detector(
             "sender_identity",
@@ -187,10 +187,15 @@ def test_maximum_current_total_is_eighty_five() -> None:
             finding("credential_security_bypass_instruction"),
             finding("credential_urgent_account_threat"),
         ),
+        detector(
+            "financial_fraud",
+            finding("financial_payment_destination_change"),
+            finding("financial_verification_bypass_request"),
+        ),
     )
 
-    assert [family.capped_points for family in result.family_scores] == [20, 40, 25, 0]
-    assert result.risk_score == 85
+    assert [family.capped_points for family in result.family_scores] == [20, 40, 25, 0, 35]
+    assert result.risk_score == 100
 
 
 def test_duplicate_evidence_ids_are_not_counted_twice() -> None:
@@ -478,9 +483,39 @@ def test_unimplemented_families_are_limitations_not_clean_evidence() -> None:
     result = score_for()
 
     assert result.risk_score == 0
-    assert any("financial_fraud" in limitation for limitation in result.limitations)
+    assert not any("financial_fraud is planned" in limitation for limitation in result.limitations)
     assert not any("attachment_metadata is planned" in limitation for limitation in result.limitations)
+    assert any("nlp_phishing" in limitation for limitation in result.limitations)
     assert result.verdict == "NO_SIGNIFICANT_SIGNALS"
+
+
+def test_financial_fraud_weight_and_cap_are_conservative() -> None:
+    result = score_for(
+        detector(
+            "financial_fraud",
+            finding("financial_payment_destination_change", "financial_fraud.sentence:0:0:a"),
+            finding("financial_verification_bypass_request", "financial_fraud.sentence:0:1:b"),
+        )
+    )
+
+    family = next(item for item in result.family_scores if item.detector_id == "financial_fraud")
+    assert (family.raw_points, family.capped_points, family.cap) == (55, 35, 35)
+    assert result.risk_score == 35
+    assert result.independent_evidence_families == ("financial_fraud",)
+    assert result.verdict == "SUSPICIOUS"
+
+
+def test_multiple_financial_rules_for_same_sentence_keep_strongest() -> None:
+    result = score_for(
+        detector(
+            "financial_fraud",
+            finding("financial_payment_destination_change", "financial_fraud.sentence:0:0:a"),
+            finding("financial_secret_or_channel_avoidance", "financial_fraud.sentence:0:0:a"),
+        )
+    )
+
+    assert result.risk_score == 30
+    assert [item.effective_contribution for item in result.scored_findings] == [30, 0]
 
 
 def test_unexpected_detector_failure_returns_incomplete_not_clean() -> None:

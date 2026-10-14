@@ -29,7 +29,7 @@ ngrok HTTPS tunnel  ->  FastAPI backend on 127.0.0.1:8000
                           |
                           +-- request validation and size limits
                           +-- parser: mailboxes, inert HTML text, anchors, URLs
-                          +-- detectors: sender identity, URL deception, credential context, attachment metadata
+                          +-- detectors: sender identity, URL deception, credential context, attachment metadata, financial fraud
                           +-- Method C v1 scorer: weights, family caps, coverage, verdict
                           v
                         JSON result (schema 1.0)
@@ -57,7 +57,7 @@ No screenshot is committed yet. To add one, analyze a **synthetic** test message
 
 ## What it detects
 
-Four detector families are implemented. Each emits findings with a stable ID; the scorer assigns the weights.
+Five detector families are implemented. Each emits findings with a stable ID; the scorer assigns the weights.
 
 | Family | What it looks at | Example findings |
 |---|---|---|
@@ -65,17 +65,18 @@ Four detector families are implemented. Each emits findings with a stable ID; th
 | URL deception | Links in the HTML and plain-text bodies | Link text shows one host but the link goes to another; the shown host used as a prefix of a different domain; IP-address hosts; hostname-like text before `@` in a URL |
 | Credential context | Subject and body wording (English) | Requests for passwords or one-time codes; account verification with a link; account-loss pressure; instructions to bypass security controls |
 | Attachment metadata | Attachment names only (Gmail's list, collected on request) | Program or script extensions; a document-like extension in front of one (`.pdf.exe`); hidden text-direction or zero-width characters in a name; HTML, SVG, OneNote and macro-enabled Office files as weak signals |
+| Financial fraud / BEC | Subject and body wording (English) | Payment-destination changes with payment instructions; urgent wire-transfer pressure; gift-card code requests; instructions to bypass finance verification; secrecy or channel avoidance around financial requests |
 
 The attachment check reads names, never content: files are not downloaded, opened, scanned or hashed, and a name does not prove what a file contains. MIME types and sizes are not scored. When attachment information is missing or incomplete the check is inconclusive and says so. The attachment family is new in WBS 2.5 Stage 2 and has not yet been verified in Gmail.
 
-Two more families are approved but **not implemented**: payment redirection / financial fraud, and an NLP phishing classifier. Every result states that these were not checked.
+One more family is approved but **not implemented**: an NLP phishing classifier. Every result states that it was not checked.
 
 ## Scoring: Method C v1
 
 The risk index is a number from 0 to 100. **It is a heuristic index, not a probability of phishing**, and it has not been calibrated.
 
 - Each finding has a fixed weight, from 0 (context only) to 35.
-- Each family is capped: sender identity 20, URL deception 40, credential context 25, attachment metadata 35. The total is clamped to 100.
+- Each family is capped: sender identity 20, URL deception 40, credential context 25, attachment metadata 35, financial fraud 35. The total is clamped to 100.
 - Repeated or overlapping evidence is counted once. There is no correlation bonus.
 - `HIGH_RISK` needs a score of at least 60 **and** evidence from at least two families, so one family cannot reach it alone.
 
@@ -184,7 +185,7 @@ The add-on requests three scopes: run as a Gmail add-on, read the currently open
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Current result: **283 passed, 1 warning** (a deprecation notice from the test client). Node.js must be on the path, because the add-on tests run `addon/Code.js` in Node.
+Current result on `feature/bec-detector`: **606 passed, 1 warning** (a deprecation notice from the test client). Node.js must be on the path, because the add-on tests run `addon/Code.js` in Node.
 
 - Backend tests cover the parser, each detector with triggering and benign cases, the engine, the scorer, and the API including authentication and error handling.
 - Add-on tests run the card-building code against a recording stand-in for CardService and check structure, escaping and the absence of links. They do not test how Gmail draws the card.
@@ -252,6 +253,7 @@ Decisions are recorded in [docs/security-decisions.md](docs/security-decisions.m
 - **Forwarded messages are not assessed.** They return `INCOMPLETE` unless other evidence is present. HTML is flattened, so a request quoted inside an HTML blockquote can still be attributed to the sender.
 - **English only.** No image or QR-code analysis, and no attachment content analysis.
 - **A single weak attachment finding does not change the verdict.** An HTML, SVG, OneNote or macro-enabled file alone scores 10, below the `SUSPICIOUS` threshold, so the verdict stays `NO_SIGNIFICANT_SIGNALS` while the finding is listed.
+- **BEC wording has no history.** The financial detector cannot know whether a bank-detail change is expected, whether a vendor is legitimate, or whether an approval happened outside the message. It only flags suspicious request wording and tells the user to verify through normal finance procedures.
 
 ## Open decision
 
@@ -270,12 +272,11 @@ Before starting: backend running on the latest code, tunnel up, Script Propertie
 
 ## Roadmap
 
-In intended order. Attachment metadata checks (WBS 2.5) are implemented on a branch and await Gmail verification; nothing below is started:
+In intended order. Attachment metadata checks (WBS 2.5) are implemented on a branch and await Gmail verification; financial-fraud wording checks are implemented locally and also await Gmail verification:
 
-1. Payment redirection and financial-fraud wording, correlated with sender and link evidence.
-2. An NLP phishing classifier, evaluated separately before it influences any score.
-3. Method C v2 scoring, to be reviewed separately; candidates include very strong single-family evidence and tracking-redirect weighting.
-4. Optional URL-reputation enrichment such as VirusTotal. This would send URLs from a user's email to a third party, so it needs explicit privacy approval and a review of the provider's terms first, and would have to be opt-in.
+1. An NLP phishing classifier, evaluated separately before it influences any score.
+2. Method C v2 scoring, to be reviewed separately; candidates include very strong single-family evidence and tracking-redirect weighting.
+3. Optional URL-reputation enrichment such as VirusTotal. This would send URLs from a user's email to a third party, so it needs explicit privacy approval and a review of the provider's terms first, and would have to be opt-in.
 
 ## Further reading
 

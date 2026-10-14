@@ -33,7 +33,7 @@ from backend.app.scoring import score_engine_result  # noqa: E402
 CASES_PATH = REPO_ROOT / "tests" / "fixtures" / "evaluation" / "cases.json"
 LABELS = {"BENIGN", "SUSPICIOUS"}
 PREDICTED_SUSPICIOUS = {"HIGH_RISK", "SUSPICIOUS"}
-IMPLEMENTED = ("sender_identity", "url_deception", "credential_context")
+IMPLEMENTED = ("sender_identity", "url_deception", "credential_context", "attachment_metadata", "financial_fraud")
 REQUIRED_FIELDS = ("id", "group", "label", "description", "expected_behavior", "rationale", "families", "overlap", "email")
 STATUS_CODES = {"TRIGGERED": "T", "NOT_TRIGGERED": "N", "INCONCLUSIVE": "I", "NOT_RUN": "X"}
 
@@ -146,7 +146,7 @@ def render_report(rows: list[dict], metrics: dict, fixture_hash: str, label: str
         "Detector status codes: T = triggered, N = not triggered, I = inconclusive, X = not run.",
         "Outcome: TP/FP/TN/FN for assessed cases; ABSTAIN when the verdict is `INCOMPLETE`.",
         "",
-        "| Case | Group | Label | Verdict | Score | Sender / URL / Credential | Findings (effective contribution) | Outcome |",
+        "| Case | Group | Label | Verdict | Score | Sender / URL / Credential / Attachment / Financial | Findings (effective contribution) | Outcome |",
         "|---|---|---|---|---:|---|---|---|",
     ]
     for row in rows:

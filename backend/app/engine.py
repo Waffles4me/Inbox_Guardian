@@ -6,13 +6,14 @@ from dataclasses import dataclass, field
 from backend.app.detectors.attachments import detect_suspicious_attachments
 from backend.app.detectors.base import DetectorFinding, DetectorResult, DetectorStatus
 from backend.app.detectors.credentials import detect_credential_phishing_context
+from backend.app.detectors.financial import detect_financial_fraud
 from backend.app.detectors.sender import detect_sender_impersonation
 from backend.app.detectors.urls import detect_deceptive_urls
 from backend.app.models import EmailPayload
 from backend.app.parsing import EvidenceSource, ParsedEmail, ParseIssue, parse_email_payload
 
 
-IMPLEMENTATION_VERSION = "engine-0.2.0"
+IMPLEMENTATION_VERSION = "engine-0.3.0"
 
 DetectorFunction = Callable[[ParsedEmail], DetectorResult]
 
@@ -39,10 +40,10 @@ IMPLEMENTED_DETECTORS: tuple[DetectorRunner, ...] = (
     DetectorRunner("url_deception", detect_deceptive_urls),
     DetectorRunner("credential_context", detect_credential_phishing_context),
     DetectorRunner("attachment_metadata", detect_suspicious_attachments),
+    DetectorRunner("financial_fraud", detect_financial_fraud),
 )
 
 PLANNED_DETECTOR_IDS: tuple[str, ...] = (
-    "financial_fraud",
     "nlp_phishing",
 )
 

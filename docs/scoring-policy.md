@@ -2,7 +2,7 @@
 
 > **Status:** APPROVED, IMPLEMENTED AND WIRED TO BACKEND `/analyze`
 > **Date:** 2026-10-13
-> **Scope:** Scoring for the four implemented internal detector families: sender identity, URL deception, credential context and, since WBS 2.5 Stage 2 (`scoring-0.2.0`, branch `wbs-2.5-stage2`, not yet committed or deployed), attachment metadata.
+> **Scope:** Scoring for the five implemented internal detector families: sender identity, URL deception, credential context, attachment metadata and financial fraud / BEC wording.
 
 This document records the approved deterministic Method C v1 scoring policy implemented in `backend/app/scoring.py`, tested in `tests/unit/test_scoring.py`, and mapped into the backend `/analyze` response by `backend/app/main.py`. It does not change the public response schema, detector code or authentication behavior. Gmail presentation is implemented separately in `addon/Code.js`.
 
@@ -29,8 +29,9 @@ Risk index is a heuristic index, not a probability.
 | `url_deception` | 40 | URL deception is the strongest implemented structural signal because it can directly identify misleading link construction without fetching the link. |
 | `credential_context` | 25 | Credential-language evidence is important but has common legitimate counterexamples, so it should not dominate without link/sender context. |
 | `attachment_metadata` | 35 | A runnable or disguised attachment name is strong structural evidence, but a name never proves file content, so it stays below the URL cap. |
+| `financial_fraud` | 35 | Payment-redirection and BEC wording is important, but the detector has no payment history, vendor records or approval state, so it remains capped below URL deception. |
 
-The first three family caps are unchanged from V1 and total 85. With the attachment family the raw total is 120, and the score is clamped to 100. The correlation bonus is explicitly `0`.
+The first four family caps are unchanged from the attachment milestone. With the financial-fraud family the raw total is 155, and the score is clamped to 100. The correlation bonus is explicitly `0`.
 
 ## Approved Verdict Thresholds
 
@@ -64,6 +65,11 @@ The first three family caps are unchanged from V1 and total 85. With the attachm
 | `attachment_invisible_character_name` (ATT-05) | `attachment_metadata` | Name contains U+200B, U+2060 or U+FEFF, or a zero-width joiner/non-joiner next to an ASCII character. | low | as above | Copy-paste artefacts. | Overlaps with any extension rule. | Good. | 10 |
 | `attachment_active_content_type` (ATT-06) | `attachment_metadata` | Final extension is HTML, MHTML, SVG or OneNote. | low | as above | Reports, logos, shared notebooks. | Exclusive with other extension rules. | Good. | 10 |
 | `attachment_macro_enabled_office` (ATT-07) | `attachment_metadata` | Final extension is a macro-enabled Office format. | low | as above | Business spreadsheets and templates. | Exclusive with other extension rules. | Good. | 10 |
+| `financial_payment_destination_change` | `financial_fraud` | Bank/account/payment-destination change wording appears in the same sentence as a payment instruction. | medium | subject/body; `financial_fraud.sentence:{context}:{sentence}:{digest}` | Legitimate vendor bank-detail changes with approved documentation. | May overlap with urgency/secrecy in the same sentence. | Moderate: sentence-level evidence ID, no raw account values. | 30 |
+| `financial_urgent_payment_request` | `financial_fraud` | Payment or wire-transfer wording appears with urgency and wire/authority pressure. | medium | as above | Legitimate time-sensitive finance operations. | Can overlap with secrecy or bypass wording in the same sentence. | Moderate. | 20 |
+| `financial_gift_card_code_request` | `financial_fraud` | Gift-card purchase wording is coupled with a request to send redemption codes or PINs. | medium | as above | Rare legitimate reward workflows, usually not via emailed code requests. | Distinct from ordinary invoice/payment wording. | Moderate. | 30 |
+| `financial_verification_bypass_request` | `financial_fraud` | A financial request asks to skip normal approval, callback, purchase-order, procurement, accounting or finance checks. | medium | as above | Rare legitimate troubleshooting or emergency process changes. | Often co-occurs with urgency or secrecy. | Moderate. | 25 |
+| `financial_secret_or_channel_avoidance` | `financial_fraud` | A financial request includes secrecy or asks to avoid normal communication channels. | medium | as above | Confidential legitimate transactions, HR or legal matters. | Often co-occurs with urgency or bypass wording. | Moderate. | 20 |
 
 ATT-08 (metadata unavailable, malformed or clipped so that a rule cannot be evaluated) adds no points; it is reported as a detector limitation. The exact extension lists, and the reasons for what is left out, are in `docs/detection-contract.md`.
 
@@ -76,7 +82,8 @@ For each family:
 3. For URL findings about the same actual destination host and same visible claim, keep the highest contribution if two rules ever overlap.
 4. For credential findings, treat `credential_request_with_link` as contextual support only. It has approved contribution `0`, should not raise the score, and must not establish independent corroboration with URL evidence.
 5. For attachment findings, every rule reads the same filename, so all findings for one attachment share a deduplication key (`attachment.name:{evidence_id}`) and only the strongest is credited; on a tie the first one emitted is kept. Distinct attachments keep separate keys and are limited by the 35-point cap, allocated strongest first and then in finding order. Identical metadata entries are checked once by the detector. Every finding from the omitted-attachment summary shares one evidence ID and is credited at most once.
-6. Sum remaining contributions and apply the family cap.
+6. For financial-fraud findings, a sentence can satisfy several wording rules; credit only the strongest rule for that sentence, then apply the family cap across distinct sentences.
+7. Sum remaining contributions and apply the family cap.
 
 The scorer should expose a compact explanation of raw finding points, removed duplicates, cap reductions and final credited family contribution.
 
@@ -90,6 +97,7 @@ Cross-family deduplication should avoid counting the same observation as indepen
 - URL evidence is independent from credential text when the URL finding identifies structural deception and the credential finding identifies separate request language.
 - Multiple credential findings from the same sentence or request should remain within the credential cap and should not create separate family independence.
 - Attachment evidence comes from attachment names, which no other family reads, so it is independent of sender, URL and credential evidence. Only ATT-01 to ATT-04 count as independent evidence. The weak rules ATT-05 to ATT-07 are common in legitimate mail and do not establish independence. Several attachment findings are still one family.
+- Financial-fraud evidence comes from active subject/body wording. It is independent from sender, URL and attachment evidence, but several BEC findings from the same sentence remain one family and do not create high-risk eligibility by themselves.
 
 Initial implementation computes no correlation bonus. It only needs enough metadata to explain whether `HIGH_RISK` eligibility is satisfied by at least two distinct triggered families with nonzero credited contributions.
 
@@ -102,7 +110,7 @@ Use `INCOMPLETE` when the available evidence is insufficient for a meaningful as
 - Any implemented detector returns `NOT_RUN` because of an unexpected internal failure.
 - Essential current-message fields are absent or clearly truncated in a way that prevents meaningful interpretation, once truncation metadata exists.
 
-Do **not** mark `INCOMPLETE` merely because financial and NLP families are planned but unimplemented. They should be disclosed as unavailable limitations.
+Do **not** mark `INCOMPLETE` merely because the NLP family is planned but unimplemented. It should be disclosed as an unavailable limitation.
 
 The attachment check is `INCONCLUSIVE`, never `NOT_RUN`, when attachment information is missing (a V1 client), unavailable, inconsistent, or truncated without a reliable finding. `INCONCLUSIVE` does not affect coverage, and the attachment detector reports no coverage gaps, so these states never turn a verdict into `INCOMPLETE`; they are disclosed as limitations. An internal failure of the attachment detector is `NOT_RUN` and makes the assessment `INCOMPLETE`, as for any implemented detector.
 
@@ -153,6 +161,7 @@ This is recorded as an open decision. The approved policy text above has been le
 Examples that should **not** be enough for high risk by themselves:
 
 - Several credential-context findings from the same request sentence.
+- Several financial-fraud findings from the same payment request sentence.
 - URL deception plus `credential_request_with_link` when the only credential evidence is that the same link exists.
 - Sender-only findings capped at 20.
 

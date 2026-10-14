@@ -509,7 +509,7 @@ def test_attachment_status_is_shown_under_analysis_coverage(monkeypatch) -> None
     assert "ig-private-agenda" not in collected_text
     legacy_text = "\n".join(section["text"] for section in rendered["legacy"])
     assert "Attachments:" not in legacy_text
-    assert "attachments, payment or financial-fraud requests" in legacy_text
+    assert "attachments and machine-learning (NLP)" in legacy_text
     # Collection changes only the limitations: the verdict and score are those of the legacy request.
     assert (results["collected"]["verdict"], results["collected"]["risk_score"]) == (
         results["legacy"]["verdict"], results["legacy"]["risk_score"])

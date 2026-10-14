@@ -377,7 +377,7 @@ def test_long_limitations_keep_reasons_visible_and_details_collapsed() -> None:
         "No meaningful risk score was produced, so the score is unavailable; the returned risk_score of 0 is a "
         "required-schema placeholder and does not mean low risk.",
         "This message contains forwarded content that was not assessed for credential requests.",
-        "Not checked: attachments, payment or financial-fraud requests and machine-learning (NLP) phishing "
+        "Not checked: attachments and machine-learning (NLP) phishing "
         "classification. These planned checks are not implemented, so nothing was assessed for them.",
         "Sender identity checks are heuristic and do not verify domain ownership.",
         "Quoted reply lines in the plain-text body were not assessed for credential requests.",
@@ -391,7 +391,7 @@ def test_long_limitations_keep_reasons_visible_and_details_collapsed() -> None:
     assert "forwarded content that was not assessed" in coverage_text
     assert "Quoted reply lines" in coverage_text
     assert "could not fully evaluate" in coverage_text
-    assert "attachments, payment or financial-fraud requests" in coverage_text
+    assert "attachments and machine-learning (NLP)" in coverage_text
     assert "Generic detector disclaimer" not in coverage_text
     assert details["setCollapsible"] is True
     assert details["setNumUncollapsibleWidgets"] == 1

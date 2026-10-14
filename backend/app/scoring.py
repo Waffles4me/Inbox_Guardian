@@ -10,19 +10,26 @@ from backend.app.parsing import ParseStatus
 
 ScoreVerdict = Literal["HIGH_RISK", "SUSPICIOUS", "NO_SIGNIFICANT_SIGNALS", "INCOMPLETE"]
 
-IMPLEMENTATION_VERSION = "scoring-0.2.0"
+IMPLEMENTATION_VERSION = "scoring-0.3.0"
 CORRELATION_BONUS = 0
 SUSPICIOUS_THRESHOLD = 20
 
-SCORED_FAMILY_ORDER = ("sender_identity", "url_deception", "credential_context", "attachment_metadata")
+SCORED_FAMILY_ORDER = (
+    "sender_identity",
+    "url_deception",
+    "credential_context",
+    "attachment_metadata",
+    "financial_fraud",
+)
 IMPLEMENTED_FAMILIES = frozenset(SCORED_FAMILY_ORDER)
-PLANNED_FAMILIES = frozenset({"financial_fraud", "nlp_phishing"})
+PLANNED_FAMILIES = frozenset({"nlp_phishing"})
 
 FAMILY_CAPS: dict[str, int] = {
     "sender_identity": 20,
     "url_deception": 40,
     "credential_context": 25,
     "attachment_metadata": 35,
+    "financial_fraud": 35,
 }
 
 FINDING_WEIGHTS: dict[str, int] = {
@@ -44,6 +51,11 @@ FINDING_WEIGHTS: dict[str, int] = {
     "attachment_invisible_character_name": 10,
     "attachment_active_content_type": 10,
     "attachment_macro_enabled_office": 10,
+    "financial_payment_destination_change": 30,
+    "financial_urgent_payment_request": 20,
+    "financial_gift_card_code_request": 30,
+    "financial_verification_bypass_request": 25,
+    "financial_secret_or_channel_avoidance": 20,
 }
 
 INDEPENDENT_FINDING_IDS = frozenset(
@@ -63,6 +75,11 @@ INDEPENDENT_FINDING_IDS = frozenset(
         "attachment_script_extension",
         "attachment_deceptive_double_extension",
         "attachment_bidi_control_name",
+        "financial_payment_destination_change",
+        "financial_urgent_payment_request",
+        "financial_gift_card_code_request",
+        "financial_verification_bypass_request",
+        "financial_secret_or_channel_avoidance",
     }
 )
 
@@ -216,6 +233,10 @@ def _deduplication_key(finding: DetectorFinding) -> str:
         # Every attachment rule reads the same filename, so one attachment is credited only for its strongest
         # rule. Distinct attachments keep separate keys and are limited by the family cap instead.
         return f"attachment.name:{finding.evidence_id}"
+    if finding.id.startswith("financial_"):
+        # A financial-fraud sentence can satisfy several wording rules. Credit the strongest rule for that
+        # sentence, then rely on the family cap for distinct sentences.
+        return f"financial.sentence:{finding.evidence_id}"
     return f"{finding.id}:{finding.evidence_id}"
 
 

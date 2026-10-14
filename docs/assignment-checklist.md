@@ -68,4 +68,4 @@ A 3 to 5 minute demo script is in `README.md`. It has not been rehearsed yet.
 
 ## Current Status
 
-Implementation and automated tests exist for four detector families; manual Gmail verification exists for the first three detector families and the result dashboard. Attachment metadata still needs real Gmail verification. Remaining before submission: add a sanitized screenshot, run the publication review, push the repository, and rehearse the demonstration.
+Implementation and automated tests exist for five detector families on `feature/bec-detector`; manual Gmail verification exists for the first three detector families and the result dashboard on the earlier baseline. Attachment metadata and financial-fraud wording still need real Gmail verification before being claimed in the live add-on. Remaining before submission: add a sanitized screenshot, run the publication review, push the repository, and rehearse the demonstration.

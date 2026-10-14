@@ -36,6 +36,7 @@ def test_every_weighted_finding_belongs_to_a_scored_family() -> None:
         "url_deception": "url_",
         "credential_context": "credential_",
         "attachment_metadata": "attachment_",
+        "financial_fraud": "financial_",
     }
 
     assert set(prefixes) == set(scoring.IMPLEMENTED_FAMILIES)

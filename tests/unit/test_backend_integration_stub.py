@@ -67,7 +67,7 @@ def test_analyze_accepts_valid_authentication_and_returns_real_assessment(monkey
     assert body["schema_version"] == "1.0"
     assert body["score_type"] == "heuristic_risk_index_not_probability"
     assert body["verdict"] == "NO_SIGNIFICANT_SIGNALS"
-    assert body["detector_version"] == "engine-0.2.0+scoring-0.2.0"
+    assert body["detector_version"] == "engine-0.3.0+scoring-0.3.0"
     assert "DEMO / NOT ANALYZED" not in response_text(body)
 
 
@@ -494,7 +494,7 @@ def test_duplicate_body_representations_do_not_inflate_contributions(monkeypatch
 
 FORWARD_MARKER = "---------- Forwarded message ---------"
 PHISHING_REQUEST = "To prevent account suspension, reply to this email with your password immediately."
-NOT_CHECKED_PREFIX = "Not checked: attachments, payment or financial-fraud requests and machine-learning (NLP)"
+NOT_CHECKED_PREFIX = "Not checked: attachments and machine-learning (NLP)"
 
 
 def forwarded_email(own_text: str, forwarded_text: str) -> dict[str, str]:
@@ -688,7 +688,7 @@ def test_planned_detectors_are_limitations_not_completed_checks(monkeypatch) -> 
 
     limitations = " ".join(response.json()["limitations"])
     assert "attachment_metadata is planned" not in limitations
-    assert "financial_fraud is planned but not implemented" in limitations
+    assert "financial_fraud is planned but not implemented" not in limitations
     assert "nlp_phishing is planned but not implemented" in limitations
 
 

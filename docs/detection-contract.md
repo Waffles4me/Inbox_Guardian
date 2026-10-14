@@ -1,7 +1,7 @@
 # InboxGuardian - Detection Contract
 
 > **Version:** Draft 0.1 - 2026-10-13
-> **Status:** Six-detector scope and **Method C v1 scoring wired to backend `/analyze`**; parser, three core detectors, orchestration, scoring, response mapping and the Gmail CardService dashboard exist, are synchronized to the Apps Script project and were manually verified in Gmail on 2026-10-13
+> **Status:** Six-detector scope and **Method C v1 scoring wired to backend `/analyze`**; parser, five deterministic detectors, orchestration, scoring and response mapping exist locally; the Gmail CardService dashboard was previously synchronized and manually verified for the earlier detector set
 > **Source of truth:** [`PROJECT_OBJECTIVE.md`](../PROJECT_OBJECTIVE.md) and [`WBS.md`](../WBS.md)
 > **Purpose:** Specify testable evidence, input availability, detector outcomes, scoring semantics, and acceptance criteria without changing the working Gmail integration.
 
@@ -21,7 +21,7 @@ Preserve `POST /analyze`, `GET /health`, `X-InboxGuardian-Token`, Apps Script pr
 | `url_deception` | Deceptive URLs | Yes; implemented and exposed through backend `/analyze` | `text_body`, `html_body`, optionally sender | Core |
 | `credential_context` | Credential phishing | Yes; implemented and exposed through backend `/analyze` | `subject`, `text_body`, safely extracted visible HTML text, optional link evidence | Core |
 | `attachment_metadata` | Suspicious attachments | Yes; implemented in WBS 2.5 Stage 2 (branch `wbs-2.5-stage2`, not yet committed, deployed or verified in Gmail) | attachment names and the Stage 1 collection state; MIME type and size are collected but not scored | Deterministic name rules ATT-01 to ATT-08 (section 8) |
-| `financial_fraud` | Payment redirection / financial fraud | Yes; not implemented | subject/body and independent identity/link context | Later deterministic increment; cannot establish historical changes |
+| `financial_fraud` | Payment redirection / financial fraud | Yes; implemented locally on `feature/bec-detector` | subject/body active text; optional independent sender/link context through other families | Deterministic wording rules for payment redirection, urgent wires, gift-card code requests, approval bypass and secrecy/channel avoidance |
 | `nlp_phishing` | NLP phishing classifier (TF-IDF + logistic regression candidate) | Yes; not implemented | labeled training/evaluation data, bounded subject/body | Experimental increment, evaluated before score integration |
 
 The approved **target scope** contains six detectors. This does **not** imply all six are mandatory to claim the first usable three-family vertical slice. Each unimplemented detector must be explicitly labeled *planned/unavailable*, not silently presented as having passed. the original private requirements brief does not mandate a detector count or machine learning; prioritize a reliable Gmail score/verdict/evidence demo over incomplete breadth.
@@ -90,8 +90,8 @@ These fields are **internal design guidance, not a present API capability**. Pre
 
 - Receives an already validated `EmailPayload`.
 - Calls `parse_email_payload` exactly once.
-- Runs implemented detectors in stable order: `sender_identity`, `url_deception`, `credential_context`, `attachment_metadata`.
-- Represents planned but unavailable families as `NOT_RUN`: `financial_fraud`, `nlp_phishing`.
+- Runs implemented detectors in stable order: `sender_identity`, `url_deception`, `credential_context`, `attachment_metadata`, `financial_fraud`.
+- Represents planned but unavailable families as `NOT_RUN`: `nlp_phishing`.
 - Preserves each detector's `DetectorResult`, findings, evidence source identities, limitations and parser issues.
 - Returns aggregate `findings`, `evidence_sources`, `limitations`, `parse_issues` and `implementation_version`.
 
@@ -272,6 +272,22 @@ Deliberate exclusions: `.url` and other internet shortcuts (what they open depen
 
 **Scoring.** See `docs/scoring-policy.md`: family cap 35; strongest rule per attachment; ATT-01 to ATT-04 are independent evidence; correlation bonus 0; thresholds unchanged.
 
+### Financial fraud / BEC detector milestone
+
+Implemented in `backend/app/detectors/financial.py` (`detect_financial_fraud`, `financial-0.1.0`) with synthetic tests in `tests/unit/test_financial_detector.py`. It reads only active subject/body wording after the shared text-context helper removes structurally identifiable forwarded and quoted plain-text content. It does not contact external services, inspect account history, validate bank details, verify vendors, compare against past payment destinations, or alter Gmail scopes.
+
+Rules are sentence-scoped and require combined context, not single words:
+
+| Rule | Finding ID | Points | Trigger |
+|---|---|---:|---|
+| BEC-01 | `financial_payment_destination_change` | 30 | Bank/account/payment-destination change wording in the same sentence as a payment instruction, unless the sentence also contains strong legitimate approval/documentation wording. |
+| BEC-02 | `financial_urgent_payment_request` | 20 | Payment or wire-transfer wording with urgency and wire/authority pressure. |
+| BEC-03 | `financial_gift_card_code_request` | 30 | Gift-card purchase wording coupled with a request to send redemption codes, PINs or photos of codes. |
+| BEC-04 | `financial_verification_bypass_request` | 25 | A financial request asks to skip normal approval, callback, purchase-order, procurement, accounting or finance checks. |
+| BEC-05 | `financial_secret_or_channel_avoidance` | 20 | A financial request asks for secrecy or avoidance of normal communication channels. |
+
+Negated warning sentences such as "do not wire funds or update bank details based only on email" do not trigger. Ordinary invoice reminders, payroll notices and documented supplier updates are covered by benign tests. Findings quote a redacted snippet; account-like values, IBAN-like strings and long digit groups are not exposed. Several findings from one sentence are reported but the scorer credits only the strongest one for that sentence. The family cap is 35, and the family is one independent evidence family for `HIGH_RISK` purposes.
+
 ### Internal orchestration milestone
 
 Implemented in `backend/app/engine.py` with synthetic tests in `tests/unit/test_engine.py`:
@@ -280,7 +296,7 @@ Implemented in `backend/app/engine.py` with synthetic tests in `tests/unit/test_
 - Sender, URL and credential detectors run on the same `ParsedEmail`.
 - Detector statuses remain independent; missing sender data does not prevent URL or credential checks.
 - Findings and evidence identifiers are preserved for later Method C deduplication and correlation accounting.
-- Planned financial and NLP detectors are represented as explicit `NOT_RUN` outcomes when included. The attachment detector has run since WBS 2.5 Stage 2.
+- Planned NLP detectors are represented as explicit `NOT_RUN` outcomes when included. The attachment detector has run since WBS 2.5 Stage 2, and the financial-fraud detector runs locally on `feature/bec-detector`.
 - The engine assigns no score or verdict and does not treat zero findings as proof of safety.
 - Malformed evidence and unexpected detector failures are not converted into clean `NOT_TRIGGERED` results.
 
@@ -305,4 +321,4 @@ A real Gmail account must show a suspicious/high-risk synthetic example, a benig
 
 **Milestone status:** the synchronization and manual verification originally listed here as the next task were completed on 2026-10-13; current next steps are in the Session Handoff of `PROJECT_OBJECTIVE.md`. The standing rules remain: do not add detector families, new Gmail scopes, model training, deploys or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and manual Gmail evidence. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit the private requirements brief, `.clasp.json`, real `.env`, credentials or real email content.
 
-**Gate for this document:** Backend `/analyze` returns real scored results and Gmail renders them through the existing authenticated flow; G2 is recorded as achieved for the first four implemented families in `WBS.md`, with attachment metadata still awaiting Gmail verification.
+**Gate for this document:** Backend `/analyze` returns real scored results and Gmail renders them through the existing authenticated flow for the previously deployed integration baseline. The financial-fraud detector is implemented locally and awaits review plus any later Gmail verification.

@@ -22,7 +22,6 @@ from .scoring import ScoredFinding, ScoringResult, score_engine_result
 API_TOKEN_ENV = "INBOXGUARDIAN_API_TOKEN"
 SCORE_TYPE = "heuristic_risk_index_not_probability"
 PLANNED_CHECK_NAMES = {
-    "financial_fraud": "payment or financial-fraud requests",
     "nlp_phishing": "machine-learning (NLP) phishing classification",
 }
 
@@ -244,6 +243,8 @@ def _recommended_action(scoring_result: ScoringResult, *, incomplete: bool) -> s
         actions.append(
             "do not open attachments or enable editing or macros until the sender confirms them through a trusted channel"
         )
+    if any(finding_id.startswith("financial_") for finding_id in finding_ids):
+        actions.append("verify payment requests through the normal finance workflow before sending money or codes")
 
     if actions:
         return "Treat this message with caution: " + "; ".join(actions) + "."
