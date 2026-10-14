@@ -17,6 +17,7 @@
 - Use a shared demo token in the `X-InboxGuardian-Token` header for the first single-user Apps Script-to-backend prototype.
 - Store the backend URL and demo token outside Git: backend environment variables locally, Apps Script Properties remotely.
 - The backend `/analyze` response exposes real parser, detector and Method C scoring results; the Gmail CardService dashboard renders them, is synchronized to the Apps Script project and was manually verified in Gmail.
+- Optional VirusTotal reputation enrichment is a separate backend provider, not a deterministic detector and not part of Method C scoring.
 - Use ngrok HTTPS forwarding to `127.0.0.1:8000` for the local single-user integration demo.
 - Keep startup manual for now instead of adding an all-in-one script that might hide state or expose tokens.
 
@@ -42,6 +43,7 @@
 - The add-on redacts and escapes every backend and message string before display, puts only fixed words and numbers in plain-text labels, and creates no clickable links, remote images or additional network calls. Icons are built-in Material icons referenced by name.
 - The add-on shows `Analysis unavailable` with no verdict or score when the backend cannot be reached, and reports a failure to build the result card separately from a backend failure.
 - `.gitignore` excludes `*.eml` so downloaded messages cannot be staged by accident.
+- Optional VirusTotal enrichment is disabled by default and requires both `INBOXGUARDIAN_VIRUSTOTAL_ENABLED` plus `VIRUSTOTAL_API_KEY` in the backend environment and explicit per-request user opt-in. The normal Gmail **Analyze Email** action never opts in; the add-on uses a separate **Check public link reputation with VirusTotal** action with sharing disclosure text. It sends only normalized base public domains or public IP addresses extracted from supported links, never bodies, subjects, addresses, full URLs, paths, query strings, cookies, tokens, subdomain labels, attachment metadata or bytes. Private, loopback, reserved, local and internal-looking destinations are excluded. The provider uses only fixed HTTPS VirusTotal v3 report endpoints, does not follow redirects, bounds response size, uses short timeouts, keeps a small in-memory cache, rate-limits locally, performs no retries, never uploads files or submits URL scans, and treats missing/zero-detection reports as `UNKNOWN` rather than clean.
 
 ## Still Open
 
@@ -53,3 +55,4 @@
 - The add-on cannot signal body truncation at 50,000 characters or distinguish an empty body from a failed retrieval.
 - HTML is flattened by the parser, so quoted or forwarded content that appears only in HTML is analysed and can be attributed to the sender.
 - Whether to add a public-suffix/registered-domain library for more precise domain relationship checks.
+- Operational approval before enabling VirusTotal in a deployed backend: confirm provider terms, noncommercial restrictions, quota, key handling and final user-facing consent wording.

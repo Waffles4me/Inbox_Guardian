@@ -4,7 +4,7 @@
 > **Date:** 2026-10-13
 > **Scope:** Scoring for the five implemented internal detector families: sender identity, URL deception, credential context, attachment metadata and financial fraud / BEC wording.
 
-This document records the approved deterministic Method C v1 scoring policy implemented in `backend/app/scoring.py`, tested in `tests/unit/test_scoring.py`, and mapped into the backend `/analyze` response by `backend/app/main.py`. It does not change the public response schema, detector code or authentication behavior. Gmail presentation is implemented separately in `addon/Code.js`.
+This document records the approved deterministic Method C v1 scoring policy implemented in `backend/app/scoring.py`, tested in `tests/unit/test_scoring.py`, and mapped into the backend `/analyze` response by `backend/app/main.py`. Gmail presentation is implemented separately in `addon/Code.js`. Optional VirusTotal `reputation_context` is outside Method C: it is an additive response field with no contribution points and must not change the public risk score, verdict, detector weights, family caps, deduplication or high-risk independence logic.
 
 ## Method C Summary
 

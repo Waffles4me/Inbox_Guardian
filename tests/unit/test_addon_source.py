@@ -81,6 +81,26 @@ def test_addon_displays_limitations_and_recommended_action() -> None:
     assert "<b>Recommended action:</b>" not in ADDON_SOURCE
 
 
+def test_addon_displays_optional_reputation_context_separately() -> None:
+    assert "reputationSection_(result)" in ADDON_SOURCE
+    assert ".setHeader('Reputation context')" in ADDON_SOURCE
+    assert "does not change the risk score or verdict" in ADDON_SOURCE
+    assert "result.reputation_context !== undefined && !Array.isArray(result.reputation_context)" in ADDON_SOURCE
+    assert "reputation_context || []" in ADDON_SOURCE
+    assert "MAX_REPUTATION_CONTEXT = 5" in ADDON_SOURCE
+
+
+def test_addon_requires_separate_virustotal_consent_action() -> None:
+    assert "function checkPublicLinkReputation(e)" in ADDON_SOURCE
+    assert "callBackend_(email, { virustotal: true })" in ADDON_SOURCE
+    assert "payload.enrichments = { virustotal: true }" in ADDON_SOURCE
+    assert "Check public link reputation with VirusTotal" in ADDON_SOURCE
+    assert "Message text, full URLs, paths, query strings and attachments are not sent" in ADDON_SOURCE
+    assert "function analyzeEmail(e)" in ADDON_SOURCE
+    assert "result = callBackend_(email);" in function_body("analyzeEmail")
+    assert "virustotal: true" not in function_body("analyzeEmail")
+
+
 def test_addon_escapes_backend_provided_text() -> None:
     assert "escapeHtml_(findingTitle_(finding))" in ADDON_SOURCE
     assert "escapeHtml_(findingSummary_(finding))" in ADDON_SOURCE
@@ -151,7 +171,10 @@ def test_addon_reads_attachments_only_when_analyze_email_runs() -> None:
     assert {name for name in functions if "collectAttachmentMetadata_(e)" in function_body(name)} == {
         "collectAttachmentsSafely_"
     }
-    assert {name for name in functions if "collectAttachmentsSafely_(e)" in function_body(name)} == {"analyzeEmail"}
+    assert {name for name in functions if "collectAttachmentsSafely_(e)" in function_body(name)} == {
+        "analyzeEmail",
+        "checkPublicLinkReputation",
+    }
     for name in ("onGmailMessageOpen", "getCurrentEmail_"):
         assert "collectAttachment" not in function_body(name)
 

@@ -26,7 +26,7 @@ Preserve `POST /analyze`, `GET /health`, `X-InboxGuardian-Token`, Apps Script pr
 
 The approved **target scope** contains six detectors. This does **not** imply all six are mandatory to claim the first usable three-family vertical slice. Each unimplemented detector must be explicitly labeled *planned/unavailable*, not silently presented as having passed. the original private requirements brief does not mandate a detector count or machine learning; prioritize a reliable Gmail score/verdict/evidence demo over incomplete breadth.
 
-Explicit exclusions: dedicated SPF/DKIM/DMARC claims without verified provenance, mailbox-history profiling, QR/image phishing, malware execution or detonation, link visiting or reputation lookups, automatic quarantine, background inbox monitoring, external inference services, and LLM-based verdicts.
+Explicit exclusions for deterministic detection: dedicated SPF/DKIM/DMARC claims without verified provenance, mailbox-history profiling, QR/image phishing, malware execution or detonation, link visiting, automatic quarantine, background inbox monitoring, external inference services, and LLM-based verdicts. Optional VirusTotal reputation enrichment is a separate backend provider, not a detector family and not part of Method C scoring.
 
 ## 3. Observed input contract (existing implementation)
 
@@ -168,12 +168,42 @@ AnalyzeResponse:
   score_type: "heuristic_risk_index_not_probability"
   verdict: HIGH_RISK | SUSPICIOUS | NO_SIGNIFICANT_SIGNALS | INCOMPLETE
   findings: list[Finding]
+  reputation_context: list[ReputationContext]  # optional context, empty unless enrichment is enabled and requested
   limitations: list[str]
   recommended_action: str
   detector_version: str
 ```
 
-The Gmail card is a modular dashboard with these sections: **Assessment** (verdict with a coloured label, a one-line meaning, and the heuristic risk index with a ten-segment text bar; `INCOMPLETE`, unrecognised verdicts and out-of-range scores show `Risk score unavailable` with no number or bar), **Key findings** (backend order, strongest first; three visible and the rest behind the native expand control; never fabricated), **Recommended action**, **Analysis coverage** (the three implemented checks, the backend's statement of planned checks that did not run, and coverage limits specific to the message) and a collapsed **Additional details** section with every remaining limitation. A backend failure shows `Analysis unavailable` with no verdict or score. Backend-provided text is redacted and escaped before use in CardService HTML-capable widgets, and no links or remote images are created. The backend returns findings ordered by contribution and leads the limitations with any incomplete reason, any excluded-content note, and one line naming the planned checks that did not run. This dashboard is synchronized to the Apps Script project and was manually verified in Gmail on the desktop web client.
+`reputation_context` is an additive compatibility field. Existing clients may ignore it. It is not a `Finding`, has no `contribution`, and must not be folded into `risk_score`, `verdict`, existing detector weights, family caps or high-risk independence logic.
+
+```text
+ReputationContext:
+  provider: "virustotal"
+  indicator_type: "domain" | "ip_address"
+  indicator: normalized public domain or public IP
+  status: SUSPICIOUS | UNKNOWN | UNAVAILABLE
+  malicious/suspicious/harmless/undetected: optional integer counts from the report
+  summary: concise interpretation
+  caveat: reputation is not proof of safety or maliciousness
+```
+
+The matching request extension is also additive:
+
+```json
+{
+  "schema_version": "1.0",
+  "email": { "...": "..." },
+  "enrichments": { "virustotal": true }
+}
+```
+
+The backend still requires an enabled feature flag and `VIRUSTOTAL_API_KEY`; request opt-in alone is insufficient.
+
+The Gmail card is a modular dashboard with these sections: **Assessment** (verdict with a coloured label, a one-line meaning, and the heuristic risk index with a ten-segment text bar; `INCOMPLETE`, unrecognised verdicts and out-of-range scores show `Risk score unavailable` with no number or bar), **Key findings** (backend order, strongest first; three visible and the rest behind the native expand control; never fabricated), **Recommended action**, **Analysis coverage** (the implemented checks, the backend's statement of planned checks that did not run, and coverage limits specific to the message) and a collapsed **Additional details** section with every remaining limitation. A backend failure shows `Analysis unavailable` with no verdict or score. Backend-provided text is redacted and escaped before use in CardService HTML-capable widgets, and no links or remote images are created. The backend returns findings ordered by contribution and leads the limitations with any incomplete reason, any excluded-content note, and one line naming the planned checks that did not run. This dashboard is synchronized to the Apps Script project and was manually verified in Gmail on the desktop web client.
+
+When `reputation_context` is present, the Gmail card may show a separate **Reputation context** section between deterministic findings and recommended action. It must not be mixed into Key findings and must state that VirusTotal context does not change the Method C score or verdict.
+
+The normal Gmail **Analyze Email** action must not include `enrichments.virustotal`. Gmail opt-in is represented by a separate **Check public link reputation with VirusTotal** action that states normalized public domains/IP addresses from message links will be shared with VirusTotal and that message text, full URLs, paths, query strings and attachments are not sent. The provider strips subdomain labels before domain lookups so confidential tenant or internal host labels are not transmitted.
 
 Expected HTTP behavior should remain: `/health` 200; authenticated well-formed request 200 with validated result; missing/wrong token 401; unconfigured server token 503; invalid input 422; unexpected analysis failures return bounded sanitized HTTP 500 errors rather than successful low-risk assessments or sensitive stack traces. Do not claim that status codes fully describe the operational security posture.
 
@@ -308,7 +338,15 @@ For each implemented rule: one positive synthetic trigger, at least one plausibl
 
 A real Gmail account must show a suspicious/high-risk synthetic example, a benign-looking counterexample, and an incomplete/operational-failure state. Document manual outcomes distinctly from automated unit tests. Never use live private messages as publicly committed fixtures. **Status (2026-10-13):** met by user-performed checks with synthetic messages - benign `0`, credential `25`, multi-signal `60`, empty-body and forwarded `INCOMPLETE`, and backend unavailable. Details are in `WBS.md` 2.13 and 3.6.
 
-## 9. Open decisions requiring explicit approval before public scoring integration
+## 9. Optional VirusTotal reputation provider
+
+Implemented in `backend/app/reputation.py` with mocked tests in `tests/unit/test_virustotal_reputation.py`. This is backend-only optional enrichment, not a detector family. It uses only parsed link hosts from `ParsedEmail`, never raw bodies, subjects, sender/recipient addresses, full URLs, URL paths, query strings, cookies, tokens, attachment metadata or attachment bytes. It performs no URL submissions and no file uploads.
+
+The provider requires three gates: backend feature flag `INBOXGUARDIAN_VIRUSTOTAL_ENABLED`, backend-only `VIRUSTOTAL_API_KEY`, and explicit per-request user opt-in through `enrichments.virustotal`. It extracts and deduplicates normalized base public domains and public IP addresses, excludes private/loopback/local/reserved/internal-looking destinations, limits each analysis to five indicators, uses a fixed `www.virustotal.com` HTTPS host and only `GET /api/v3/domains/{domain}` or `GET /api/v3/ip_addresses/{ip}`, does not follow redirects, bounds response reads, applies short socket timeouts, keeps a small in-memory cache and local request window, and does not retry.
+
+Statuses are conservative. Nonzero malicious or suspicious report counts produce `SUSPICIOUS`; missing reports and zero detections produce `UNKNOWN`, not clean; missing keys, disabled feature flag, no opt-in, quota/rate limits, HTTP 401/403/429/5xx, malformed responses and timeouts produce no context or `UNAVAILABLE` context without changing deterministic analysis. Public VirusTotal API use is subject to VirusTotal's current terms and noncommercial restrictions.
+
+## 10. Open decisions requiring explicit approval before public scoring integration
 
 1. **`INCONCLUSIVE` and the clean verdict:** `docs/scoring-policy.md` makes `NO_SIGNIFICANT_SIGNALS` eligible only when sender identity and at least one body/link-oriented family completed as `NOT_TRIGGERED`. The code does not consult detector statuses for this, so usable content with inconclusive URL and credential checks still receives `NO_SIGNIFICANT_SIGNALS`. Whether to change the code or the policy is undecided. (The earlier item here, live Gmail verification, was completed on 2026-10-13.)
 2. **Attachment availability:** resolved for metadata by the WBS 2.5A probe (existing scope sufficient) and the Stage 1 collection-state contract. Still open: forwarded `.eml` attachments (T09), whether large attachments are loaded at call time, and real-Gmail verification of the Stage 1 collector and Stage 2 detector through the real add-on.
@@ -317,7 +355,7 @@ A real Gmail account must show a suspicious/high-risk synthetic example, a benig
 5. **Parsing policy still open beyond WBS 2.1:** whether to add public-suffix/registered-domain comparison and any future schema support for reliable upstream truncation flags. Initial URL/HTML bounds and IDNA hostname normalization are pinned in parser tests.
 6. **Weak attachment findings and the verdict label:** a single 10-point attachment finding leaves the verdict `NO_SIGNIFICANT_SIGNALS` while the finding is shown (see the known limitation in `docs/scoring-policy.md`). Changing that is a scoring-policy decision, not part of Stage 2.
 
-## 10. First bounded implementation milestone and handoff
+## 11. First bounded implementation milestone and handoff
 
 **Milestone status:** the synchronization and manual verification originally listed here as the next task were completed on 2026-10-13; current next steps are in the Session Handoff of `PROJECT_OBJECTIVE.md`. The standing rules remain: do not add detector families, new Gmail scopes, model training, deploys or public response schema changes without separate authorization. Report file changes, tested scenarios, `pytest` outcomes and manual Gmail evidence. Update progress/checkpoints in `PROJECT_OBJECTIVE.md` and `WBS.md` only after verification; run Git secrecy/tracking checks before proposing commit/push. Never commit the private requirements brief, `.clasp.json`, real `.env`, credentials or real email content.
 

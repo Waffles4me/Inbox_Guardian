@@ -65,9 +65,14 @@ class EmailPayload(BaseModel):
         return headers
 
 
+class EnrichmentOptions(BaseModel):
+    virustotal: bool = False
+
+
 class AnalyzeRequest(BaseModel):
     schema_version: Literal["1.0"] = "1.0"
     email: EmailPayload
+    enrichments: EnrichmentOptions = Field(default_factory=EnrichmentOptions)
 
 
 class Finding(BaseModel):
@@ -79,6 +84,19 @@ class Finding(BaseModel):
     contribution: int = Field(ge=0, le=100)
 
 
+class ReputationContext(BaseModel):
+    provider: Literal["virustotal"]
+    indicator_type: Literal["domain", "ip_address"]
+    indicator: str = Field(max_length=255)
+    status: Literal["SUSPICIOUS", "UNKNOWN", "UNAVAILABLE"]
+    malicious: int | None = Field(default=None, ge=0)
+    suspicious: int | None = Field(default=None, ge=0)
+    harmless: int | None = Field(default=None, ge=0)
+    undetected: int | None = Field(default=None, ge=0)
+    summary: str = Field(max_length=240)
+    caveat: str = Field(max_length=240)
+
+
 class AnalyzeResponse(BaseModel):
     schema_version: Literal["1.0"] = "1.0"
     risk_score: int = Field(ge=0, le=100)
@@ -88,3 +106,4 @@ class AnalyzeResponse(BaseModel):
     limitations: list[str]
     recommended_action: str
     detector_version: str
+    reputation_context: list[ReputationContext] = Field(default_factory=list, max_length=5)

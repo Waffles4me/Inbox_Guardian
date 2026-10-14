@@ -10,7 +10,7 @@ Three choices shape everything else:
 
 - **Explain every warning.** Each finding names what was observed in the message and why it matters. There is no opaque model score.
 - **Say what was not checked.** A message that could not be assessed gets the verdict `INCOMPLETE`, never a low score. A clean-looking result is labeled "No significant suspicious signals found", never "safe".
-- **Treat the email as hostile.** Links are never opened, HTML is never rendered, attachments are never touched, and the backend makes no outbound requests.
+- **Treat the email as hostile.** Links are never opened, HTML is never rendered, attachments are never touched, and deterministic analysis makes no outbound requests. Optional VirusTotal enrichment is separate, disabled by default, and only sends normalized public domains or public IPs when explicitly enabled and requested.
 
 ## How it works
 
@@ -31,6 +31,7 @@ ngrok HTTPS tunnel  ->  FastAPI backend on 127.0.0.1:8000
                           +-- parser: mailboxes, inert HTML text, anchors, URLs
                           +-- detectors: sender identity, URL deception, credential context, attachment metadata, financial fraud
                           +-- Method C v1 scorer: weights, family caps, coverage, verdict
+                          +-- optional VirusTotal reputation context, separate from scoring
                           v
                         JSON result (schema 1.0)
    |
@@ -45,6 +46,7 @@ The add-on contains no detection logic. The backend contains no Gmail-specific c
 |---|---|
 | Assessment | Verdict with a colored label, a one-line meaning, and the risk index with a ten-segment bar |
 | Key findings | Strongest findings first; three visible, the rest behind the expand control |
+| Reputation context | Optional VirusTotal context, if enabled and requested; separate from Method C findings |
 | Recommended action | One concrete next step |
 | Analysis coverage | Which checks exist, which planned checks did not run, and any limits specific to this message |
 | Additional details | Every remaining limitation, collapsed by default |
@@ -90,6 +92,16 @@ The risk index is a number from 0 to 100. **It is a heuristic index, not a proba
 `INCOMPLETE` is returned when the score is below 20 and any of these holds: the sender could not be parsed; the body has no readable text and no supported link (a subject line alone is not enough); the message forwards another message, whose content is deliberately not attributed to the sender and therefore not assessed; or the body consists only of quoted lines. An implemented detector that fails to run forces `INCOMPLETE` at any score. Findings are still shown in all of these cases.
 
 The full weight table and rationale are in [docs/scoring-policy.md](docs/scoring-policy.md). The detector contract is in [docs/detection-contract.md](docs/detection-contract.md).
+
+## Optional VirusTotal enrichment
+
+VirusTotal v3 enrichment is an optional backend-only provider, not a sixth deterministic detector family and not part of Method C scoring. It is disabled unless all of these are true: `INBOXGUARDIAN_VIRUSTOTAL_ENABLED` is set to `1`/`true`/`yes`, `VIRUSTOTAL_API_KEY` is present in the backend process environment, and the `/analyze` request includes `"enrichments": {"virustotal": true}`.
+
+When enabled and opted in, the provider extracts at most five unique public domains or public IP addresses from supported email links. For hostnames, subdomain labels are stripped before lookup so tenant or internal labels are not shared; for common country-code second-level suffixes such as `co.uk`, the registered-domain approximation is kept. It sends only that normalized base domain or public IP to VirusTotal over HTTPS using the allowlisted v3 report endpoints. It never sends email bodies, subjects, sender/recipient addresses, full URLs, URL paths, query strings, cookies, tokens, attachment metadata or attachment bytes. Private, loopback, local, reserved and internal-looking destinations are excluded. Results appear in `reputation_context` and in the add-on's separate Reputation context section; they do not change `risk_score`, `verdict`, finding weights, family caps or high-risk independence logic.
+
+VirusTotal context is not a safety certificate: missing reports and zero detections are shown as `UNKNOWN`, not clean. API failures, quota exhaustion, missing keys, timeouts and malformed responses fail closed for enrichment while preserving the original email analysis. Public VirusTotal API use is subject to VirusTotal's terms and noncommercial restrictions; review the current terms before enabling it outside local testing.
+
+The normal Gmail **Analyze Email** action never opts into VirusTotal. After a normal result, the card shows a separate **Check public link reputation with VirusTotal** action with disclosure text; only that action sends the per-analysis opt-in.
 
 ## Repository layout
 
@@ -217,7 +229,7 @@ Not checked by hand: Gmail's dark theme, the mobile app, screen readers, and the
 **Untrusted input**
 
 - HTML is parsed as inert text with Python's standard library. Scripts and styles are ignored; nothing is rendered or executed.
-- Links are parsed, never fetched, expanded or resolved. There are no reputation lookups and no outbound requests from the backend.
+- Links are parsed, never fetched, expanded or resolved by deterministic analysis. Optional VirusTotal enrichment is the only backend outbound lookup path, and it is disabled unless separately enabled and requested.
 - Only attachment names, declared types and sizes are collected, and only names are checked. Attachment content is never read, downloaded or opened.
 - Inputs are bounded: 50,000 characters per body, 50 URLs per source, 2,048 characters per URL.
 - The add-on escapes every backend and message string before display and creates no clickable links or remote images.
@@ -232,6 +244,7 @@ Not checked by hand: Gmail's dark theme, the mobile app, screen readers, and the
 - Only the opened message is read, and only when the user clicks the button.
 - The backend stores nothing and does not log message content.
 - Query strings, URL fragments and numeric codes are removed from the text shown in findings.
+- Optional VirusTotal enrichment, when enabled and opted in per request, sends only normalized base public domains or public IP addresses from links. It does not send bodies, subjects, recipients, full URLs, URL paths, query strings, cookies, tokens, subdomain labels or attachment data.
 
 **Known gaps in this prototype**
 
@@ -254,10 +267,13 @@ Decisions are recorded in [docs/security-decisions.md](docs/security-decisions.m
 - **English only.** No image or QR-code analysis, and no attachment content analysis.
 - **A single weak attachment finding does not change the verdict.** An HTML, SVG, OneNote or macro-enabled file alone scores 10, below the `SUSPICIOUS` threshold, so the verdict stays `NO_SIGNIFICANT_SIGNALS` while the finding is listed.
 - **BEC wording has no history.** The financial detector cannot know whether a bank-detail change is expected, whether a vendor is legitimate, or whether an approval happened outside the message. It only flags suspicious request wording and tells the user to verify through normal finance procedures.
+- **VirusTotal enrichment is context, not proof.** It is off by default, rate-limited, limited to public domains/IPs from links, and does not submit URLs or files. A missing report or zero detections does not mean a destination is safe, and a suspicious reputation result does not prove the email is malicious.
 
 ## Open decision
 
 [docs/scoring-policy.md](docs/scoring-policy.md) says a clean verdict requires the sender check and at least one body or link check to finish without triggering. The code does not consult detector statuses for that decision: a message with usable content whose URL and credential checks are both inconclusive still gets `NO_SIGNIFICANT_SIGNALS`. This mismatch is documented and deliberately unresolved; neither the policy nor the code has been changed to hide it.
+
+VirusTotal enrichment is exposed in Gmail only through the separate **Check public link reputation with VirusTotal** action. The normal **Analyze Email** button remains local-only for deterministic analysis.
 
 ## Demo script (3 to 5 minutes)
 
@@ -272,11 +288,11 @@ Before starting: backend running on the latest code, tunnel up, Script Propertie
 
 ## Roadmap
 
-In intended order. Attachment metadata checks (WBS 2.5) are implemented on a branch and await Gmail verification; financial-fraud wording checks are implemented locally and also await Gmail verification:
+In intended order. Attachment metadata checks (WBS 2.5) and financial-fraud wording checks are implemented in the integrated baseline; VirusTotal reputation enrichment is implemented on this feature branch and awaits review:
 
 1. An NLP phishing classifier, evaluated separately before it influences any score.
 2. Method C v2 scoring, to be reviewed separately; candidates include very strong single-family evidence and tracking-redirect weighting.
-3. Optional URL-reputation enrichment such as VirusTotal. This would send URLs from a user's email to a third party, so it needs explicit privacy approval and a review of the provider's terms first, and would have to be opt-in.
+3. Operational review before enabling VirusTotal in any deployed backend: confirm terms, key handling, quota expectations and user-facing consent text.
 
 ## Further reading
 

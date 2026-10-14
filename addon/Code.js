@@ -27,6 +27,8 @@ var MAX_PRIMARY_FINDINGS = 3;
 var MAX_RENDERED_FINDINGS = 12;
 var MAX_FINDING_TITLE_CHARS = 120;
 var MAX_FINDING_SUMMARY_CHARS = 700;
+var MAX_REPUTATION_CONTEXT = 5;
+var MAX_REPUTATION_SUMMARY_CHARS = 500;
 var MAX_COVERAGE_NOTES = 5;
 var MAX_DETAIL_LIMITATIONS = 40;
 var MAX_LIMITATION_CHARS = 300;
@@ -83,6 +85,7 @@ var IMPLEMENTED_CHECKS = [
   'Sender identity',
   'Link (URL) deception',
   'Credential-request wording',
+  'Financial fraud wording',
   'Attachment metadata assessed (names only; attachment content not inspected)'
 ];
 
@@ -130,6 +133,27 @@ function analyzeEmail(e) {
   }
 }
 
+function checkPublicLinkReputation(e) {
+  var email = getCurrentEmail_(e);
+  // This separate action is the per-analysis consent boundary for VirusTotal sharing.
+  var attachments = collectAttachmentsSafely_(e);
+  email.attachmentCollection = attachments.collection;
+  email.attachments = attachments.items;
+  var result;
+  try {
+    result = callBackend_(email, { virustotal: true });
+  } catch (error) {
+    console.error('InboxGuardian reputation check failed: ' + error);
+    return buildMessageCard_(email, null, userSafeError_(error));
+  }
+  try {
+    return buildMessageCard_(email, result);
+  } catch (renderError) {
+    console.error('InboxGuardian reputation result rendering failed: ' + renderError);
+    return buildMessageCard_(email, null, RESULT_DISPLAY_ERROR);
+  }
+}
+
 function getCurrentEmail_(e) {
   if (!e || !e.gmail || !e.gmail.messageId || !e.gmail.accessToken) {
     throw new Error('No opened Gmail message is available.');
@@ -146,13 +170,30 @@ function getCurrentEmail_(e) {
   };
 }
 
-function callBackend_(email) {
+function callBackend_(email, options) {
   var scriptProperties = PropertiesService.getScriptProperties();
   var backendUrl = scriptProperties.getProperty(BACKEND_URL_PROPERTY);
   var apiToken = scriptProperties.getProperty(API_TOKEN_PROPERTY);
 
   if (!backendUrl || !apiToken) {
     throw new Error('InboxGuardian backend is not configured.');
+  }
+
+  var payload = {
+    schema_version: '1.0',
+    email: {
+      subject: email.subject,
+      from: email.from,
+      reply_to: email.replyTo,
+      text_body: email.textBody,
+      html_body: email.htmlBody,
+      headers: {},
+      attachment_metadata: email.attachments || [],
+      attachment_collection: email.attachmentCollection
+    }
+  };
+  if (options && options.virustotal === true) {
+    payload.enrichments = { virustotal: true };
   }
 
   var response = UrlFetchApp.fetch(backendUrl.replace(/\/$/, '') + '/analyze', {
@@ -162,19 +203,7 @@ function callBackend_(email) {
     headers: {
       'X-InboxGuardian-Token': apiToken
     },
-    payload: JSON.stringify({
-      schema_version: '1.0',
-      email: {
-        subject: email.subject,
-        from: email.from,
-        reply_to: email.replyTo,
-        text_body: email.textBody,
-        html_body: email.htmlBody,
-        headers: {},
-        attachment_metadata: email.attachments || [],
-        attachment_collection: email.attachmentCollection
-      }
-    })
+    payload: JSON.stringify(payload)
   });
 
   var statusCode = response.getResponseCode();
@@ -207,6 +236,9 @@ function validateBackendResult_(result) {
     throw new Error('Unexpected backend response.');
   }
   if (typeof result.recommended_action !== 'string' || typeof result.detector_version !== 'string') {
+    throw new Error('Unexpected backend response.');
+  }
+  if (result.reputation_context !== undefined && !Array.isArray(result.reputation_context)) {
     throw new Error('Unexpected backend response.');
   }
 }
@@ -438,6 +470,8 @@ function resultSections_(result) {
   return [
     verdictSection_(result),
     findingsSection_(result),
+    reputationSection_(result),
+    reputationConsentSection_(result),
     actionSection_(result),
     coverageSection_(result, limitations),
     detailsSection_(result, limitations)
@@ -669,6 +703,93 @@ function findingLabel_(finding, verdict) {
 // ---------------------------------------------------------------------------
 // C. Recommended action
 // ---------------------------------------------------------------------------
+
+function reputationSection_(result) {
+  var contexts = (result.reputation_context || []).slice(0, MAX_REPUTATION_CONTEXT);
+  if (!contexts.length) {
+    return null;
+  }
+
+  var section = CardService.newCardSection()
+    .setHeader('Reputation context')
+    .addWidget(
+      textParagraph_(
+        'Optional VirusTotal reputation context is shown separately and does not change the risk score or verdict.'
+      )
+    );
+
+  contexts.forEach(function(context, index) {
+    if (index > 0) {
+      section.addWidget(CardService.newDivider());
+    }
+    reputationWidgets_(context).forEach(function(widget) {
+      section.addWidget(widget);
+    });
+  });
+
+  return section;
+}
+
+function reputationWidgets_(context) {
+  return [
+    iconText_({
+      topLabel: reputationLabel_(context),
+      icon: 'travel_explore',
+      iconLabel: 'Reputation context',
+      html: '<b>' + escapeHtml_(reputationIndicator_(context)) + '</b>'
+    }),
+    textParagraph_(escapeHtml_(reputationSummary_(context)))
+  ];
+}
+
+function reputationLabel_(context) {
+  var type = safeString_(context && context.indicator_type) === 'ip_address' ? 'IP address' : 'Domain';
+  var status = safeString_(context && context.status) || 'UNKNOWN';
+  return type + ' Â· VirusTotal Â· ' + status;
+}
+
+function reputationIndicator_(context) {
+  return truncate_(safeString_(context && context.indicator), MAX_FINDING_TITLE_CHARS) || 'Indicator';
+}
+
+function reputationSummary_(context) {
+  var parts = [];
+  var summary = safeString_(context && context.summary);
+  var caveat = safeString_(context && context.caveat);
+  if (summary) {
+    parts.push(summary);
+  }
+  if (caveat) {
+    parts.push(caveat);
+  }
+  if (!parts.length) {
+    parts.push('VirusTotal did not provide concise reputation context for this indicator.');
+  }
+  return truncate_(parts.join(' '), MAX_REPUTATION_SUMMARY_CHARS);
+}
+
+function reputationConsentSection_(result) {
+  if (result.reputation_context && result.reputation_context.length) {
+    return null;
+  }
+
+  return CardService.newCardSection()
+    .setHeader('Public link reputation')
+    .addWidget(
+      textParagraph_(
+        'Optional: share only normalized public domains or public IP addresses from this message\'s links with VirusTotal. Message text, full URLs, paths, query strings and attachments are not sent.'
+      )
+    )
+    .addWidget(
+      CardService.newTextButton()
+        .setText('Check public link reputation with VirusTotal')
+        .setOnClickAction(
+          CardService.newAction()
+            .setFunctionName('checkPublicLinkReputation')
+            .setLoadIndicator(CardService.LoadIndicator.SPINNER)
+        )
+    );
+}
 
 function actionSection_(result) {
   var action = recommendedActionText_(result);

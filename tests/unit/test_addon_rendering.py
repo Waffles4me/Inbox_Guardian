@@ -68,8 +68,10 @@ vm.runInContext(fs.readFileSync('addon/Code.js', 'utf8'), context);
 let output;
 if (input.mode === 'analyze') {
   // Exercise analyzeEmail with Gmail and the network replaced; nothing here reads mail or calls a backend.
+  const backendCalls = [];
   context.getCurrentEmail_ = () => input.email;
-  context.callBackend_ = () => {
+  context.callBackend_ = (email, options) => {
+    backendCalls.push({ email: email, options: options || null });
     if (input.backendError) throw new Error(input.backendError);
     return input.result;
   };
@@ -77,7 +79,17 @@ if (input.mode === 'analyze') {
     context.verdictSection_ = () => { throw new Error('synthetic rendering failure'); };
   }
   const card = plain(context.analyzeEmail({}));
-  output = { card: card, methods: Array.from(methods).sort() };
+  output = { card: card, methods: Array.from(methods).sort(), backendCalls: backendCalls };
+} else if (input.mode === 'reputation') {
+  const backendCalls = [];
+  context.getCurrentEmail_ = () => input.email;
+  context.callBackend_ = (email, options) => {
+    backendCalls.push({ email: email, options: options || null });
+    if (input.backendError) throw new Error(input.backendError);
+    return input.result;
+  };
+  const card = plain(context.checkPublicLinkReputation({}));
+  output = { card: card, methods: Array.from(methods).sort(), backendCalls: backendCalls };
 } else if (input.mode === 'validate') {
   try {
     context.validateBackendResult_(input.result);
@@ -133,6 +145,7 @@ class Card:
     def __init__(self, rendered: dict) -> None:
         self.raw = rendered["card"]
         self.methods = rendered["methods"]
+        self.backend_calls = rendered.get("backendCalls", [])
         self.sections = self.raw.get("addSection", [])
 
     def section(self, header: str) -> dict | None:
@@ -208,6 +221,7 @@ def test_benign_result_is_neutral_and_never_called_safe(monkeypatch) -> None:
         None,
         "Assessment",
         "Key findings",
+        "Public link reputation",
         "Recommended action",
         "Analysis coverage",
         "Additional details",
@@ -235,6 +249,65 @@ def test_credential_phishing_result_uses_amber_and_shows_25(monkeypatch) -> None
     assert "Message asks for login secrets" in findings
     assert "+20 to risk index" in findings
     assert "Context only, +0" in findings
+
+
+def test_reputation_context_is_rendered_separately_without_changing_score() -> None:
+    result = synthetic_result(
+        risk_score=0,
+        verdict="NO_SIGNIFICANT_SIGNALS",
+        reputation_context=[
+            {
+                "provider": "virustotal",
+                "indicator_type": "domain",
+                "indicator": "example.org",
+                "status": "UNKNOWN",
+                "malicious": 0,
+                "suspicious": 0,
+                "summary": "VirusTotal report has no malicious detections; this is unknown, not clean.",
+                "caveat": "VirusTotal reputation is contextual and is not proof that the message is safe or malicious.",
+            }
+        ],
+    )
+
+    card = render(result)
+    reputation = card.section("Reputation context")
+
+    assert "Reputation context" in card.headers()
+    assert "Public link reputation" not in card.headers()
+    assert "Key findings" in card.headers()
+    assert "0/100" in card.all_text(card.section("Assessment"))
+    assert "example.org" in card.all_text(reputation)
+    assert "Domain" in card.all_text(reputation)
+    assert "UNKNOWN" in card.all_text(reputation)
+    assert "does not change the risk score or verdict" in card.all_text(reputation)
+    assert "not proof" in card.all_text(reputation)
+    assert_card_is_inert(card)
+
+
+def test_normal_analyze_action_does_not_consent_to_virustotal() -> None:
+    card = Card(run_harness({"mode": "analyze", "email": EMAIL, "result": synthetic_result()}))
+
+    assert len(card.backend_calls) == 1
+    assert card.backend_calls[0]["options"] is None
+    assert card.backend_calls[0]["email"]["subject"] == EMAIL["subject"]
+    assert card.backend_calls[0]["email"]["from"] == EMAIL["from"]
+    assert "Public link reputation" in card.headers()
+    section = card.section("Public link reputation")
+    text = card.all_text(section)
+    assert "normalized public domains or public IP addresses" in text
+    assert "Message text, full URLs, paths, query strings and attachments are not sent" in text
+    button = card.widgets(section)[-1]
+    assert button["setText"] == "Check public link reputation with VirusTotal"
+    assert button["setOnClickAction"]["setFunctionName"] == "checkPublicLinkReputation"
+
+
+def test_virustotal_action_is_the_only_addon_consent_path() -> None:
+    card = Card(run_harness({"mode": "reputation", "email": EMAIL, "result": synthetic_result()}))
+
+    assert len(card.backend_calls) == 1
+    assert card.backend_calls[0]["options"] == {"virustotal": True}
+    assert card.backend_calls[0]["email"]["subject"] == EMAIL["subject"]
+    assert card.backend_calls[0]["email"]["from"] == EMAIL["from"]
 
 
 def test_multi_signal_result_uses_red_and_lists_strongest_finding_first(monkeypatch) -> None:
@@ -477,9 +550,18 @@ def test_unrecognised_verdict_or_out_of_range_score_shows_no_number() -> None:
         synthetic_result(findings="not a list"),
         synthetic_result(limitations=None),
         synthetic_result(risk_score="60"),
+        synthetic_result(reputation_context="not a list"),
         {key: value for key, value in synthetic_result().items() if key != "recommended_action"},
     ],
-    ids=["null", "wrong-schema", "findings-not-list", "limitations-null", "score-not-number", "action-missing"],
+    ids=[
+        "null",
+        "wrong-schema",
+        "findings-not-list",
+        "limitations-null",
+        "score-not-number",
+        "reputation-not-list",
+        "action-missing",
+    ],
 )
 def test_malformed_backend_responses_are_rejected_before_rendering(broken) -> None:
     outcome = run_harness({"mode": "validate", "result": broken})

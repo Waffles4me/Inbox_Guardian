@@ -14,9 +14,11 @@ from .models import (
     AttachmentMetadata,
     AttachmentNameClip,
     EmailPayload,
+    EnrichmentOptions,
     Finding,
 )
 from .parsing import AttachmentCollectionState
+from .reputation import enrich_with_virustotal
 from .scoring import ScoredFinding, ScoringResult, score_engine_result
 
 API_TOKEN_ENV = "INBOXGUARDIAN_API_TOKEN"
@@ -37,7 +39,14 @@ VALIDATION_LOCATION_ROOTS = frozenset({"body", "query", "header", "path", "cooki
 # from the message, came from the request and is replaced.
 SCHEMA_FIELD_NAMES = frozenset(
     name
-    for model in (AnalyzeRequest, EmailPayload, AttachmentMetadata, AttachmentNameClip, AttachmentCollection)
+    for model in (
+        AnalyzeRequest,
+        EmailPayload,
+        AttachmentMetadata,
+        AttachmentNameClip,
+        AttachmentCollection,
+        EnrichmentOptions,
+    )
     for field_name, info in model.model_fields.items()
     for name in (field_name, info.alias)
     if name
@@ -110,10 +119,23 @@ def analyze_email(request: AnalyzeRequest) -> AnalyzeResponse:
             detail="Email analysis failed before a reliable assessment could be produced.",
         ) from exc
 
-    return _response_from_scoring(scoring_result, engine_result)
+    try:
+        reputation_context = enrich_with_virustotal(
+            engine_result.parsed_email,
+            opt_in=request.enrichments.virustotal,
+        )
+    except Exception:
+        reputation_context = ()
+
+    return _response_from_scoring(scoring_result, engine_result, reputation_context=reputation_context)
 
 
-def _response_from_scoring(scoring_result: ScoringResult, engine_result: EngineResult) -> AnalyzeResponse:
+def _response_from_scoring(
+    scoring_result: ScoringResult,
+    engine_result: EngineResult,
+    *,
+    reputation_context=(),
+) -> AnalyzeResponse:
     incomplete = scoring_result.verdict == "INCOMPLETE"
     public_score = 0 if incomplete else scoring_result.risk_score
     public_findings = _public_findings(scoring_result.scored_findings)
@@ -127,6 +149,7 @@ def _response_from_scoring(scoring_result: ScoringResult, engine_result: EngineR
         limitations=limitations,
         recommended_action=_recommended_action(scoring_result, incomplete=incomplete),
         detector_version=f"{engine_result.implementation_version}+{scoring_result.implementation_version}",
+        reputation_context=list(reputation_context),
     )
 
 
