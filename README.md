@@ -44,18 +44,25 @@ The add-on contains no detection logic. The backend contains no Gmail-specific c
 
 | Section | Content |
 |---|---|
-| Assessment | Verdict with a colored label, a one-line meaning, and the risk index with a ten-segment bar |
-| Key findings | Strongest findings first; three visible, the rest behind the expand control |
-| Reputation context | Optional VirusTotal context, if enabled and requested; separate from Method C findings |
-| Recommended action | One concrete next step |
-| Analysis coverage | Which checks exist, which planned checks did not run, and any limits specific to this message |
-| Additional details | Every remaining limitation, collapsed by default |
+| Assessment | Verdict with a short guidance line, the risk index with a ten-segment bar, and the main (strongest) finding |
+| Key findings | Strongest findings first, each with its point contribution, what was observed and why it matters; three visible, the rest behind the expand control |
+| Recommended action | One concrete next step, labelled "What to do next" |
+| Reputation context | Optional VirusTotal context, only after the separate opt-in action; labelled as external enrichment and separate from Method C findings |
+| Analysis coverage | Checks the backend ran, checks it reports as not run, attachment status, and limits specific to this message |
+| Additional details | Every remaining limitation and the analysis version, collapsed by default |
+
+Display rules that never change the backend result:
+
+- A `NO_SIGNIFICANT_SIGNALS` verdict with a score above 0 also shows **"Weak indicator detected — Review findings"**, marked as a display interpretation. The backend verdict and score are shown unchanged.
+- A finding worth less than 20 points is labelled "Weak on its own", because it cannot reach the `SUSPICIOUS` threshold by itself.
+- `INCOMPLETE` and unrecognised verdicts show no score. A low or zero score is never presented as safe.
+- The **Checked** list is filtered by the backend's own "Not checked" line, so an older backend without a detector is not shown as having run it.
 
 A backend failure shows "Analysis unavailable" with no verdict or score.
 
 ### Screenshot
 
-No screenshot is committed yet. To add one, analyze a **synthetic** test message (never real mail), capture the side panel, save it as `docs/images/dashboard.png`, and reference it here. Check that the image shows no real addresses, account names or tunnel URLs.
+No screenshot is committed yet. Demonstration scenarios, with expected results and places for screenshots, are in [examples/README.md](examples/README.md). Capture only **synthetic** test messages (never real mail), and check that each image shows no real addresses, account names or tunnel URLs.
 
 ## What it detects
 
@@ -69,7 +76,7 @@ Five detector families are implemented. Each emits findings with a stable ID; th
 | Attachment metadata | Attachment names only (Gmail's list, collected on request) | Program or script extensions; a document-like extension in front of one (`.pdf.exe`); hidden text-direction or zero-width characters in a name; HTML, SVG, OneNote and macro-enabled Office files as weak signals |
 | Financial fraud / BEC | Subject and body wording (English) | Payment-destination changes with payment instructions; urgent wire-transfer pressure; gift-card code requests; instructions to bypass finance verification; secrecy or channel avoidance around financial requests |
 
-The attachment check reads names, never content: files are not downloaded, opened, scanned or hashed, and a name does not prove what a file contains. MIME types and sizes are not scored. When attachment information is missing or incomplete the check is inconclusive and says so. The attachment family is new in WBS 2.5 Stage 2 and has not yet been verified in Gmail.
+The attachment check reads names, never content: files are not downloaded, opened, scanned or hashed, and a name does not prove what a file contains. MIME types and sizes are not scored. When attachment information is missing or incomplete the check is inconclusive and says so. Attachment metadata checks were verified in Gmail with synthetic attachments (no attachment, an ordinary PDF, an HTML file scoring 10, and a 30-attachment message with 25 detailed entries). A deceptive `.pdf.exe` test could not be sent because Gmail blocks executable attachments.
 
 One more family is approved but **not implemented**: an NLP phishing classifier. Every result states that it was not checked.
 
@@ -266,6 +273,7 @@ Decisions are recorded in [docs/security-decisions.md](docs/security-decisions.m
 - **Forwarded messages are not assessed.** They return `INCOMPLETE` unless other evidence is present. HTML is flattened, so a request quoted inside an HTML blockquote can still be attributed to the sender.
 - **English only.** No image or QR-code analysis, and no attachment content analysis.
 - **A single weak attachment finding does not change the verdict.** An HTML, SVG, OneNote or macro-enabled file alone scores 10, below the `SUSPICIOUS` threshold, so the verdict stays `NO_SIGNIFICANT_SIGNALS` while the finding is listed.
+- **BEC rules match within one sentence.** Each financial rule needs its indicators in the same sentence, so a request split across sentences (for example "buy gift cards" followed by "send me the codes") is missed. Sentences containing "do not / don't" before a payment or send verb are skipped as warnings, which also drops instructions such as "do not call to verify". These are known false negatives; the detector logic is frozen for this release.
 - **BEC wording has no history.** The financial detector cannot know whether a bank-detail change is expected, whether a vendor is legitimate, or whether an approval happened outside the message. It only flags suspicious request wording and tells the user to verify through normal finance procedures.
 - **VirusTotal enrichment is context, not proof.** It is off by default, rate-limited, limited to public domains/IPs from links, and does not submit URLs or files. A missing report or zero detections does not mean a destination is safe, and a suspicious reputation result does not prove the email is malicious.
 
@@ -288,7 +296,7 @@ Before starting: backend running on the latest code, tunnel up, Script Propertie
 
 ## Roadmap
 
-In intended order. Attachment metadata checks (WBS 2.5) and financial-fraud wording checks are implemented in the integrated baseline; VirusTotal reputation enrichment is implemented on this feature branch and awaits review:
+In intended order. Attachment metadata checks are implemented and verified in Gmail. Financial-fraud wording checks and the optional VirusTotal enrichment are implemented and covered by automated tests, but have not yet been verified against a live backend running this version:
 
 1. An NLP phishing classifier, evaluated separately before it influences any score.
 2. Method C v2 scoring, to be reviewed separately; candidates include very strong single-family evidence and tracking-redirect weighting.

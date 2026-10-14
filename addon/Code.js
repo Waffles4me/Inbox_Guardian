@@ -35,6 +35,8 @@ var MAX_LIMITATION_CHARS = 300;
 var MAX_ACTION_CHARS = 600;
 var MAX_VERSION_CHARS = 80;
 var RISK_BAR_SEGMENTS = 10;
+// Display only: mirrors the documented Method C Suspicious threshold (docs/scoring-policy.md); never used to score.
+var WEAK_FINDING_LIMIT = 20;
 
 // Presentation only: labels, colours and icons per backend verdict. Verdicts are never reclassified here.
 var VERDICT_STYLES = {
@@ -97,11 +99,15 @@ var SEVERITY_LABELS = {
 };
 var RESULT_DISPLAY_ERROR = 'The analysis finished but its result could not be displayed. No verdict is shown.';
 var IMPLEMENTED_CHECKS = [
-  'Sender identity',
-  'Link (URL) deception',
-  'Credential-request wording',
-  'Financial fraud wording',
-  'Attachment metadata assessed (names only; attachment content not inspected)'
+  {label: 'Sender identity', notCheckedRe: /\bsender\b/i},
+  {label: 'Link (URL) deception', notCheckedRe: /\b(?:links?|url)\b/i},
+  {label: 'Credential-request wording', notCheckedRe: /\bcredential/i},
+  // Older backends name this planned check "payment or financial-fraud requests".
+  {label: 'Financial fraud wording', notCheckedRe: /financial|payment/i},
+  {
+    label: 'Attachment metadata assessed (names only; attachment content not inspected)',
+    notCheckedRe: /\battachments?\b/i
+  }
 ];
 
 // How backend limitation lines are grouped for display. Grouping never removes a line.
@@ -573,9 +579,22 @@ function verdictSection_(result) {
       })
     );
   }
-  return section
+  section
     .addWidget(textParagraph_(weak ? WEAK_INDICATOR_STYLE.summary : style.summary))
     .addWidget(riskScoreWidget_(result, weak ? WEAK_INDICATOR_STYLE : style));
+  // The strongest finding (the backend orders findings strongest first) answers "why" without scrolling.
+  if (meaningfulScore_(result) !== null && result.findings.length) {
+    section.addWidget(
+      iconText_({
+        topLabel: 'Main finding',
+        icon: 'report',
+        iconLabel: 'Main finding',
+        html: escapeHtml_(findingTitle_(result.findings[0])),
+        bottomLabel: findingLabel_(result.findings[0], result.verdict)
+      })
+    );
+  }
+  return section;
 }
 
 // True only for the backend's NO_SIGNIFICANT_SIGNALS verdict with a positive, in-range score.
@@ -744,6 +763,10 @@ function findingLabel_(finding, verdict) {
     parts.push(
       verdict === 'INCOMPLETE' ? 'Finding weight +' + contribution : '+' + contribution + ' to risk index'
     );
+    // Below the Suspicious threshold a single finding cannot raise the verdict by itself.
+    if (contribution < WEAK_FINDING_LIMIT) {
+      parts.push('Weak on its own');
+    }
   } else if (contribution === 0) {
     parts.push('Context only, +0');
   }
@@ -866,9 +889,10 @@ function actionSection_(result) {
     .setHeader('Recommended action')
     .addWidget(
       iconText_({
+        topLabel: 'What to do next',
         icon: 'task_alt',
         iconLabel: 'Recommended action',
-        html: escapeHtml_(action)
+        html: '<b>' + escapeHtml_(action) + '</b>'
       })
     );
 }
@@ -886,17 +910,19 @@ function recommendedActionText_(result) {
 // ---------------------------------------------------------------------------
 
 function coverageSection_(result, limitations) {
-  var section = CardService.newCardSection()
-    .setHeader('Analysis coverage')
-    .addWidget(
+  var checks = checksRun_(limitations.notChecked);
+  var section = CardService.newCardSection().setHeader('Analysis coverage');
+  if (checks.length) {
+    section.addWidget(
       iconText_({
-        topLabel: 'Checks run by this version',
+        topLabel: 'Checked',
         icon: 'rule',
-        iconLabel: 'Checks run by this version',
-        html: IMPLEMENTED_CHECKS.join(' · '),
-        bottomLabel: 'A listed check can still be inconclusive for a given message'
+        iconLabel: 'Checked',
+        html: checks.join(' · '),
+        bottomLabel: 'A check can still be limited or inconclusive for this message; see below'
       })
     );
+  }
 
   if (limitations.notChecked) {
     section.addWidget(
@@ -946,6 +972,16 @@ function coverageSection_(result, limitations) {
     textParagraph_('<i>A low or zero risk index does not guarantee that a message is safe.</i>')
   );
   return section;
+}
+
+// The add-on knows which checks it expects, but only the backend knows which ran. A check that the backend's
+// "Not checked" line names (for example an older backend without the financial detector) is never listed as checked.
+function checksRun_(notChecked) {
+  return IMPLEMENTED_CHECKS.filter(function(check) {
+    return !(notChecked && check.notCheckedRe.test(notChecked));
+  }).map(function(check) {
+    return check.label;
+  });
 }
 
 // Splits the backend limitations for display without dropping any of them:

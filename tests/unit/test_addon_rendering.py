@@ -505,8 +505,10 @@ def test_hostile_backend_and_message_text_is_rendered_inert() -> None:
     assert "654321" not in text
     finding_label = card.widgets(card.section("Key findings"))[0]["setTopLabel"]
     assert finding_label == "+30 to risk index"
-    action = card.widgets(card.section("Recommended action"))[0]["setText"]
-    assert not action.lower().startswith("recommended action")
+    action = card.widgets(card.section("Recommended action"))[0]
+    assert action["setTopLabel"] == "What to do next"
+    assert action["setText"].startswith("<b>")
+    assert not action["setText"].removeprefix("<b>").lower().startswith("recommended action")
     for section in card.sections:
         for widget in card.widgets(section):
             for label in ("setTopLabel", "setBottomLabel"):
@@ -634,16 +636,21 @@ def test_verdict_presentation_by_score(verdict, score, headline, weak, shown_sco
         assert "backend verdict above is unchanged" in note["setBottomLabel"]
         assert "not confirmed malicious" in widgets[2]["setText"]
         assert "does not guarantee" in widgets[2]["setText"]
-        assert "#1E6B3A" not in widgets[-1]["setText"]
+        assert "#1E6B3A" not in next(w["setText"] for w in widgets if "/100" in w.get("setText", ""))
     if shown_score is None:
         assert "/100" not in card.all_text()
         assert "■" not in card.all_text()
     else:
-        score_widget = widgets[-1]
+        score_widget = next(w for w in widgets if w.get("setTopLabel") == "Risk index")
         assert shown_score in score_widget["setText"]
         assert score_widget["setText"].count("■") == filled
         assert score_widget["setText"].count("■") + score_widget["setText"].count("□") == 10
     assert "safe" not in widgets[0]["setText"].lower()
+    main = [w for w in widgets if w.get("setTopLabel") == "Main finding"]
+    if findings and shown_score is not None:
+        assert main and main[0]["setText"] == WEAK_FINDING["title"]
+    else:
+        assert not main
 
 
 def analyze_attachment(monkeypatch, filename: str, content_type: str) -> dict:
@@ -681,7 +688,7 @@ def test_finding_separates_observation_from_interpretation_and_drops_repeats() -
     )
     assert paragraphs[1] == "One attachment name ends in .html."
     assert paragraphs[2] == "<i>Why it matters:</i> HTML attachments can imitate sign-in pages."
-    assert widgets[0]["setTopLabel"] == "+10 to risk index · Low severity"
+    assert widgets[0]["setTopLabel"] == "+10 to risk index · Weak on its own · Low severity"
 
 
 def test_long_finding_text_shares_one_bounded_budget() -> None:
@@ -748,3 +755,67 @@ def test_coverage_groups_attachment_status_and_never_implies_safety() -> None:
     assert "Quoted reply lines" in card.all_text(coverage)
     assert "does not guarantee that a message is safe" in widgets[-1]["setText"]
     assert "Gmail listed 30" not in card.all_text(card.section("Additional details"))
+
+
+OLD_BACKEND_NOT_CHECKED = (
+    "Not checked: payment or financial-fraud requests and machine-learning (NLP) phishing classification. "
+    "These planned checks are not implemented, so nothing was assessed for them."
+)
+NEW_BACKEND_NOT_CHECKED = (
+    "Not checked: machine-learning (NLP) phishing classification. "
+    "These planned checks are not implemented, so nothing was assessed for them."
+)
+
+
+def checked_labels(limitations: list[str]) -> tuple[str, str]:
+    card = render(synthetic_result(verdict="NO_SIGNIFICANT_SIGNALS", risk_score=0, limitations=limitations))
+    widgets = card.widgets(card.section("Analysis coverage"))
+    checked = next((w["setText"] for w in widgets if w.get("setTopLabel") == "Checked"), "")
+    not_checked = next((w["setText"] for w in widgets if w.get("setTopLabel") == "Not checked"), "")
+    return checked, not_checked
+
+
+def test_coverage_lists_only_checks_the_backend_did_not_exclude() -> None:
+    checked, not_checked = checked_labels([OLD_BACKEND_NOT_CHECKED])
+
+    assert "Financial fraud wording" not in checked
+    assert "Sender identity" in checked and "Credential-request wording" in checked
+    assert "payment or financial-fraud requests" in not_checked
+
+    checked, _ = checked_labels([NEW_BACKEND_NOT_CHECKED])
+    for label in ("Sender identity", "Link (URL) deception", "Credential-request wording",
+                  "Financial fraud wording", "Attachment metadata assessed"):
+        assert label in checked
+
+
+def test_legacy_attachment_line_removes_attachments_from_checked() -> None:
+    checked, not_checked = checked_labels(
+        ["Not checked: attachments. This request included no attachment information, so they were not assessed."]
+    )
+
+    assert "Attachment metadata" not in checked
+    assert "Financial fraud wording" in checked
+    assert "attachments" in not_checked
+
+
+def test_strong_finding_is_not_marked_weak() -> None:
+    strong = dict(WEAK_FINDING, id="strong", contribution=30, severity="high")
+    card = render(synthetic_result(findings=[strong, WEAK_FINDING]))
+    labels = [w["setTopLabel"] for w in card.widgets(card.section("Key findings")) if w["type"] == "DecoratedText"]
+
+    assert labels == [
+        "+30 to risk index · High severity",
+        "+10 to risk index · Weak on its own · Low severity",
+    ]
+    main = next(w for w in card.widgets(card.section("Assessment")) if w.get("setTopLabel") == "Main finding")
+    assert main["setBottomLabel"] == "+30 to risk index · High severity"
+
+
+def test_main_finding_title_is_escaped_and_bounded() -> None:
+    hostile = dict(WEAK_FINDING, title="<script>x</script>" + "T" * 300, contribution=30)
+    card = render(synthetic_result(findings=[hostile]))
+    main = next(w for w in card.widgets(card.section("Assessment")) if w.get("setTopLabel") == "Main finding")
+
+    assert main["setText"].startswith("&lt;script&gt;")
+    assert len(main["setText"]) <= 140
+    assert_card_is_inert(card)

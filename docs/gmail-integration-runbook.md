@@ -6,7 +6,7 @@ This runbook prepares and verifies the Gmail vertical slice:
 Opened Gmail message -> Gmail Add-on -> FastAPI backend -> real result card
 ```
 
-The Apps Script source renders real backend assessments as a modular dashboard using the existing `/analyze` response schema. It is synchronized to the existing Apps Script project and was manually verified in Gmail on 2026-10-13. Any further change to `addon/` needs a reviewed `clasp push`.
+The Apps Script source renders real backend assessments as a modular dashboard using the existing `/analyze` response schema. The 2026-10-13 version was synchronized to the existing Apps Script project and manually verified in Gmail. Later add-on changes need a reviewed `clasp push` and a Gmail check against a backend reporting the matching analysis version (Additional details, "Analysis version").
 
 ## Current Local State
 

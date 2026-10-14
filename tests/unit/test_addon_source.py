@@ -108,7 +108,7 @@ def test_addon_escapes_backend_provided_text() -> None:
     assert "escapeHtml_(parts.interpretation)" in ADDON_SOURCE
     assert "return CardService.newDecoratedText()" in ADDON_SOURCE
     assert ".setText(escapeHtml_(safeString_(text)))" in ADDON_SOURCE
-    assert "html: escapeHtml_(action)" in ADDON_SOURCE
+    assert "html: '<b>' + escapeHtml_(action) + '</b>'" in ADDON_SOURCE
     assert "html: escapeHtml_(note)" in ADDON_SOURCE
     assert "escapeHtml_(line)" in ADDON_SOURCE
     assert "escapeHtml_(errorMessage)" in ADDON_SOURCE
