@@ -75,6 +75,8 @@ The backend must report analysis version `engine-0.3.0+scoring-0.3.0` under **Ad
 
 *Not yet run in Gmail.* Record the verdict, score, analysis version and any difference from the expected result here. Do not copy the expected values.
 
+The live G13 test (observed 25/100) is a separate message and is not an observation of this draft. It is recorded in the [live observation log](README.md#live-gmail-observation-log).
+
 ---
 
 **INSERT SCREENSHOT HERE**
