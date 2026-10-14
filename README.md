@@ -117,7 +117,8 @@ addon/                  Gmail Add-on source (Code.js) and manifest (appsscript.j
 backend/app/            FastAPI app, parser, detectors, engine, scorer
 tests/unit/             Backend tests and add-on rendering tests
 tests/evaluation/       Runner for the synthetic evaluation
-tests/fixtures/         Labeled synthetic evaluation cases
+tests/fixtures/         Labeled synthetic evaluation cases and the maximum-risk example fixture
+examples/               Demonstration scenarios, Gmail drafts and screenshot placeholders
 docs/                   Contracts, policy, security decisions, runbooks, evaluation reports
 PROJECT_OBJECTIVE.md    Scope, decisions and session handoff
 WBS.md                  Work breakdown and evidence per task
@@ -204,7 +205,7 @@ The add-on requests three scopes: run as a Gmail add-on, read the currently open
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Current result on `feature/bec-detector`: **606 passed, 1 warning** (a deprecation notice from the test client). Node.js must be on the path, because the add-on tests run `addon/Code.js` in Node.
+Current result on the V1 release candidate (`feature/finish`): **664 passed, 1 warning** (a deprecation notice from the test client). Node.js must be on the path, because the add-on tests run `addon/Code.js` in Node.
 
 - Backend tests cover the parser, each detector with triggering and benign cases, the engine, the scorer, and the API including authentication and error handling.
 - Add-on tests run the card-building code against a recording stand-in for CardService and check structure, escaping and the absence of links. They do not test how Gmail draws the card.
@@ -223,7 +224,7 @@ The repository includes 30 labeled synthetic messages: 15 benign and 15 suspicio
 | Benign messages wrongly flagged | 2 of 15 | 1 of 15 |
 | Abstentions (`INCOMPLETE`) | 0 | 0 |
 
-**These numbers are not detection accuracy.** The set is small, synthetic, and was written by someone who had read the detector rules. One false positive was fixed in response to it, so the current figures are not an independent measurement. The value is in the per-case failures, which are analyzed in [docs/evaluation-baseline.md](docs/evaluation-baseline.md). The original run is kept in [docs/evaluation-results.md](docs/evaluation-results.md) and the latest in [docs/evaluation-results-post-backend-cleanup.md](docs/evaluation-results-post-backend-cleanup.md).
+**These numbers are not detection accuracy.** The set is small, synthetic, and was written by someone who had read the detector rules. One false positive was fixed in response to it, so the current figures are not an independent measurement. The value is in the per-case failures, which are analyzed in [docs/evaluation-baseline.md](docs/evaluation-baseline.md). The original run is kept in [docs/evaluation-results.md](docs/evaluation-results.md) and the latest, with all five detector families, in [docs/evaluation-results-bec-detector.md](docs/evaluation-results-bec-detector.md).
 
 ### Manual verification in Gmail
 
